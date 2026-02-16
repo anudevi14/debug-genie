@@ -64,17 +64,39 @@ class AIAnalyzer:
         If historical_context is provided, AI will consider if it's a repeated issue.
         If vision_data is provided, AI will incorporate screenshot insights.
         """
+        # Calculate Confidence Signals for the AI
+        similarity_score = historical_context['score'] if historical_context else 0.0
+        has_vision = vision_data is not None
+        
+        # Phase 5: Reliability & Analyst Correction Signals
+        is_verified = False
+        reliability_score = 0.7
+        historical_is_analyst_corrected = False
+        
+        if historical_context:
+            match_entry = historical_context.get("full_entry", {})
+            is_verified = match_entry.get("verified", False)
+            reliability_score = match_entry.get("reliability_score", 0.7)
+            historical_is_analyst_corrected = match_entry.get("analyst_root_cause") is not None
+
         system_prompt = (
             "You are a Senior Production Support Engineer with expertise in troubleshooting complex enterprise systems. "
             "Analyze the provided Salesforce Case description, comments, and screenshot data to determine the root cause. "
             "Restrict hallucinations and provide analysis based only on the provided facts. "
             "\n\n"
+            "### INTELLIGENCE SOURCES:\n"
+            "1. **Analyst Corrections**: If the historical context is 'Analyst Corrected', treat that explanation as the Gold Standard truth.\n"
+            "2. **Verified Matches**: If a historical match is 'Verified', it has a higher weight than unverified AI guesses.\n"
+            "3. **Visual Evidence**: Screenshot data helps confirm technical errors (error codes, stack traces).\n"
+            "\n"
             "You MUST return the output as a STRICT JSON object with the following keys:\n"
             "- impactedService: The service or component affected.\n"
             "- probableRootCause: A concise explanation of the root cause.\n"
             "- splunkQuerySuggestion: A relevant Splunk query to investigate further.\n"
             "- recommendedSteps: Concrete steps to resolve or mitigate the issue.\n"
-            "- confidence: 'Low' | 'Medium' | 'High'\n"
+            "- confidence: 'Low' | 'Medium' | 'High' (Categorical level)\n"
+            "- confidence_score: number (0 to 100), quantify your trust in this RCA.\n"
+            "- confidence_reasoning: string, a human-readable explanation referencing similarity matches, reliability of truth sources, and visual evidence.\n"
             "- isRepeatedIssue: boolean, true if this current ticket matches the patterns of the provided historical ticket.\n"
             "- similarTicketReference: string, the Ticket Number of the similar historical ticket (if any).\n"
             "- similarityScore: number, the provided similarity score if applicable.\n"
@@ -85,23 +107,37 @@ class AIAnalyzer:
 
         user_content = f"CURRENT TICKET FOR ANALYSIS:\n\n{ticket_data}\n\n"
         
+        user_content += "INTELLIGENCE SIGNALS:\n"
+        user_content += f"- Semantic Similarity Match: {similarity_score}\n"
+        user_content += f"- Visual Evidence Found: {has_vision}\n"
+        user_content += f"- Historical Match Verified: {is_verified}\n"
+        user_content += f"- Historical Memory Reliability: {reliability_score}\n"
+        user_content += f"- Historical is Analyst Corrected: {historical_is_analyst_corrected}\n"
+        
         if vision_data:
-            user_content += (
-                "VISUAL EVIDENCE (FROM SCREENSHOT):\n"
-                f"{json.dumps(vision_data, indent=2)}\n\n"
-            )
+            user_content += f"- Visual Extraction: {json.dumps(vision_data)}\n"
+        user_content += "\n"
 
         if historical_context:
+            title = "HISTORICAL CONTEXT (ANALYST CORRECTED)" if historical_is_analyst_corrected else "HISTORICAL CONTEXT (AI GENERATED)"
+            
+            # Prioritize Analyst Content
+            h_rc = match_entry.get("analyst_root_cause") or match_entry.get("ai_root_cause") or "N/A"
+            h_res = match_entry.get("analyst_resolution") or match_entry.get("ai_resolution") or "N/A"
+            
             user_content += (
-                "HISTORICAL CONTEXT (SIMILAR TICKET DETECTED):\n"
+                f"{title}:\n"
                 f"Previous Ticket Reference: {historical_context['ticket_number']}\n"
-                f"Similarity Score: {historical_context['score']}\n"
-                f"Previous Content: {historical_context['content']}\n\n"
-                "If the current ticket is a repeat of this historical issue, reuse the known resolution if valid."
+                f"Previous Root Cause: {h_rc}\n"
+                f"Previous Resolution: {h_res}\n"
+                f"Previous Raw Content: {historical_context['content'][:1000]}\n\n"
+                "If the current ticket is a repeat of this historical issue, reuse the known resolution if valid. "
+                "Prioritize the 'Analyst Corrected' details over everything else."
             )
 
         response = self.client.chat.completions.create(
-            model=self.model,
+            # Force gpt-4o for complex reasoning in Phase 5
+            model="gpt-4o",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content}
@@ -119,8 +155,8 @@ class AIAnalyzer:
             data = json.loads(json_str)
             required_keys = [
                 "impactedService", "probableRootCause", "splunkQuerySuggestion", 
-                "recommendedSteps", "confidence", "isRepeatedIssue", 
-                "similarTicketReference", "similarityScore", "visualEvidenceUsed"
+                "recommendedSteps", "confidence", "confidence_score", "confidence_reasoning",
+                "isRepeatedIssue", "similarTicketReference", "similarityScore", "visualEvidenceUsed"
             ]
             for key in required_keys:
                 if key not in data:
@@ -128,6 +164,8 @@ class AIAnalyzer:
                         data[key] = False
                     elif key == "similarityScore":
                         data[key] = 0.0
+                    elif key == "confidence_score":
+                        data[key] = 50.0
                     elif key == "visualEvidenceUsed":
                         data[key] = False
                     else:
