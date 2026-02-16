@@ -91,6 +91,34 @@ class SalesforceClient:
         comments = [rec["CommentBody"] for rec in records if rec.get("CommentBody")]
         return "\n".join(comments)
 
+    def fetch_historical_cases(self, current_ticket_number, limit=50):
+        """Fetch last N cases excluding the current one."""
+        soql = (
+            f"SELECT Id, CaseNumber, Subject, Description, CreatedDate "
+            f"FROM Case WHERE CaseNumber != '{current_ticket_number}' "
+            f"ORDER BY CreatedDate DESC LIMIT {limit}"
+        )
+        url = f"{self.instance_url}/services/data/v59.0/query"
+        params = {"q": soql}
+
+        if Config.MOCK_MODE:
+            return [
+                {"Id": "mock_1", "CaseNumber": "00001006", "Subject": "Payment Gateway Timeout", "Description": "504 errors in payment service."},
+                {"Id": "mock_2", "CaseNumber": "00001007", "Subject": "User Login Failure", "Description": "Cannot login to dashboard."}
+            ]
+
+        response = requests.get(url, headers=self._get_headers(), params=params)
+        if response.status_code != 200:
+            raise Exception(f"Failed to fetch historical cases: {response.text}")
+        
+        return response.json().get("records", [])
+
+    def get_ticket_text_for_comparison(self, case_record):
+        """Extracts and concatenates Case details for similarity check."""
+        subject = case_record.get("Subject", "")
+        description = case_record.get("Description", "")
+        return f"{subject} {description}".strip()
+
     def get_full_ticket_data(self, ticket_number):
         """Combines Case details and comments into a single text block for analysis."""
         case = self.fetch_case(ticket_number)
@@ -103,4 +131,4 @@ class SalesforceClient:
         combined_text += f"Description: {case.get('Description')}\n"
         combined_text += f"Comments:\n{comments}"
         
-        return combined_text
+        return combined_text, case # Returning case object as well for ID/Number access
