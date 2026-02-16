@@ -59,7 +59,9 @@ with st.sidebar:
                         progress_bar.progress((i + 1) / len(historical_cases))
                         continue
                     
-                    # Generate search text and embedding
+                    # Phase 4 Enhancement: Also check for screenshots during backfill
+                    # For simplicity in Phase 4, we only embed text during mass backfill
+                    # but new tickets during runtime get multimodal embeddings.
                     text = sf_client.get_ticket_text_for_comparison(case)
                     embedding = ai_analyzer.get_embedding(text)
                     
@@ -67,7 +69,7 @@ with st.sidebar:
                         "case_number": case_num,
                         "text": text,
                         "embedding": embedding,
-                        "root_cause": "N/A (Historical)", # In future, GPT can pre-analyze
+                        "root_cause": "N/A (Historical)",
                         "resolution": "N/A (Historical)"
                     })
                     progress_bar.progress((i + 1) / len(historical_cases))
@@ -96,11 +98,31 @@ if submit_button:
             if not ticket_data:
                 st.error(f"Ticket #{ticket_number} not found in Salesforce.")
             else:
-                # 2. Semantic Similarity Matching
-                with st.spinner("Searching semantic memory for similar patterns..."):
-                    current_text = sf_client.get_ticket_text_for_comparison(case_obj)
-                    current_embedding = ai_analyzer.get_embedding(current_text)
+                # 2. Phase 4: Handle Screenshots (Vision)
+                vision_data = None
+                with st.spinner("Checking for screenshot attachments..."):
+                    attachments = sf_client.fetch_case_attachments(case_obj["Id"])
+                
+                if attachments:
+                    attach = attachments[0]
+                    st.info(f"📸 **Screenshot Found**: {attach['Name']} (Analyzing with Vision...)")
+                    with st.spinner("Extracting visual evidence using GPT-4o Vision..."):
+                        img_base64 = sf_client.get_attachment_content(attach["Id"])
+                        vision_data = ai_analyzer.vision_extract(img_base64)
                     
+                    if vision_data:
+                        st.success("✅ Vision Analysis Complete!")
+                        with st.expander("Show Extracted Visual Markers"):
+                            st.json(vision_data)
+                
+                # 3. Semantic Similarity Matching (Multimodal Context)
+                # We enrich the text for embedding with vision data if available
+                text_for_embedding = sf_client.get_ticket_text_for_comparison(case_obj)
+                if vision_data:
+                    text_for_embedding += f"\nScreenshot Visual Markers: {json.dumps(vision_data)}"
+
+                with st.spinner("Searching semantic memory for similar patterns..."):
+                    current_embedding = ai_analyzer.get_embedding(text_for_embedding)
                     memory_entries = memory_manager.get_all_entries()
                     similar_match, score = similarity_engine.find_most_similar_semantic(current_embedding, memory_entries)
                 
@@ -122,15 +144,24 @@ if submit_button:
                 with st.expander("Show Fetched Case Details (Input to AI)"):
                     st.text(ticket_data)
 
-                # 3. Analyze with AI
-                with st.spinner("Analyzing with GPT-4.1-mini..."):
-                    analysis_result = ai_analyzer.analyze_ticket(ticket_data, historical_context=hist_context)
+                # 4. Analyze with AI (Multimodal)
+                with st.spinner("Generating RCA with GPT-4o..."):
+                    analysis_result = ai_analyzer.analyze_ticket(
+                        ticket_data, 
+                        historical_context=hist_context, 
+                        vision_data=vision_data
+                    )
                 
                 st.success("Analysis Complete!")
                 
-                # High-level Badge for Repeated Issues
-                if analysis_result.get("isRepeatedIssue"):
-                    st.error(f"🚨 **Repeated Issue Detected!** (Matches #{analysis_result.get('similarTicketReference')})")
+                # High-level Badges
+                col1, col2 = st.columns(2)
+                with col1:
+                    if analysis_result.get("isRepeatedIssue"):
+                        st.error(f"🚨 **Repeated Issue Detected!** (Matches #{analysis_result.get('similarTicketReference')})")
+                with col2:
+                    if analysis_result.get("visualEvidenceUsed"):
+                        st.warning("🔍 **RCA backed by Visual Evidence**")
 
                 st.subheader("Root Cause Analysis (RCA)")
                 st.json(analysis_result)
@@ -144,4 +175,4 @@ if submit_button:
 
 # Footer
 st.markdown("---")
-st.caption("Powered by Salesforce, OpenAI Embeddings, and GPT-4.1-mini. Semantic Phase 3 enabled.")
+st.caption("Powered by Salesforce, GPT-4o Vision, and OpenAI Embeddings. Multimodal Phase 4 enabled.")

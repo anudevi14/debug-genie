@@ -141,3 +141,37 @@ class SalesforceClient:
         combined_text += f"Comments:\n{comments}"
         
         return combined_text, case # Returning case object as well for ID/Number access
+
+    def fetch_case_attachments(self, case_id):
+        """Fetch image attachments (JPG/JPEG) for a given Case Id."""
+        soql = (
+            f"SELECT Id, Name, ContentType FROM Attachment "
+            f"WHERE ParentId = '{case_id}' "
+            f"AND (ContentType = 'image/jpeg' OR ContentType = 'image/jpg') "
+            f"LIMIT 1"
+        )
+        url = f"{self.instance_url}/services/data/v59.0/query"
+        params = {"q": soql}
+
+        if Config.MOCK_MODE:
+            return [{"Id": "mock_attach_id", "Name": "error_screenshot.jpg", "ContentType": "image/jpeg"}]
+
+        response = requests.get(url, headers=self._get_headers(), params=params)
+        if response.status_code != 200:
+            return [] # Silent fail for attachments to not break RCA pipeline
+        
+        return response.json().get("records", [])
+
+    def get_attachment_content(self, attachment_id):
+        """Retrieve base64 content of a specific attachment."""
+        url = f"{self.instance_url}/services/data/v59.0/sobjects/Attachment/{attachment_id}/Body"
+        
+        if Config.MOCK_MODE:
+            return "mock_base64_content"
+
+        response = requests.get(url, headers=self._get_headers())
+        if response.status_code != 200:
+            return None
+            
+        import base64
+        return base64.b64encode(response.content).decode('utf-8')
