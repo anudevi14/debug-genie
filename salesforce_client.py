@@ -44,8 +44,8 @@ class SalesforceClient:
             "Content-Type": "application/json"
         }
 
-    def fetch_case(self, ticket_number):
-        """Fetch Case details by CaseNumber."""
+    def fetch_case(self, ticket_number, retry=True):
+        """Fetch Case details by CaseNumber with automatic session refresh."""
         soql = f"SELECT Id, CaseNumber, Subject, Description FROM Case WHERE CaseNumber = '{ticket_number}'"
         url = f"{self.instance_url}/services/data/v59.0/query"
         params = {"q": soql}
@@ -55,6 +55,11 @@ class SalesforceClient:
 
         response = requests.get(url, headers=self._get_headers(), params=params)
 
+        # Handle expired session
+        if response.status_code == 401 and retry:
+            self.access_token = None # Force refresh
+            return self.fetch_case(ticket_number, retry=False)
+
         if response.status_code != 200:
             raise Exception(f"Failed to fetch case: {response.text}")
         
@@ -63,8 +68,8 @@ class SalesforceClient:
             return None
         return records[0]
 
-    def fetch_case_comments(self, case_id):
-        """Fetch all related CaseComments for a given Case Id."""
+    def fetch_case_comments(self, case_id, retry=True):
+        """Fetch all related CaseComments for a given Case Id with automatic session refresh."""
         soql = f"SELECT CommentBody FROM CaseComment WHERE ParentId = '{case_id}'"
         url = f"{self.instance_url}/services/data/v59.0/query"
         params = {"q": soql}
@@ -73,6 +78,11 @@ class SalesforceClient:
             return "2026-02-16 10:00: Logs show connection pool exhaustion in the Auth service.\n2026-02-16 10:30: Restarted the service but issue persisted."
 
         response = requests.get(url, headers=self._get_headers(), params=params)
+
+        # Handle expired session
+        if response.status_code == 401 and retry:
+            self.access_token = None # Force refresh
+            return self.fetch_case_comments(case_id, retry=False)
 
         if response.status_code != 200:
             raise Exception(f"Failed to fetch case comments: {response.text}")
