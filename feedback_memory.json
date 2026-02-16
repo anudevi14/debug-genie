@@ -1,0 +1,45 @@
+[
+  {
+    "case_number": "00001027",
+    "timestamp": "2026-02-17T00:54:23.567429",
+    "feedback_type": "correct",
+    "ai_root_cause": "Kafka consumer timeout due to increased consumer lag and insufficient consumer instances to handle the load.",
+    "ai_resolution": [
+      "Scale out the Kafka consumer instances for the NotificationService to handle the increased load.",
+      "Monitor the consumer lag and adjust the number of instances dynamically based on the load.",
+      "Review Kafka broker configurations to ensure optimal performance."
+    ],
+    "analyst_root_cause": null,
+    "analyst_resolution": null,
+    "confidence_score_at_time": null
+  },
+  {
+    "case_number": "00001026",
+    "timestamp": "2026-02-17T01:00:45.446746",
+    "feedback_type": "edited",
+    "ai_root_cause": "The NotificationService is experiencing a timeout error, which suggests that it may be unable to process requests within the expected time frame.",
+    "ai_resolution": [
+      "Check the server load and performance metrics for the NotificationService to identify any bottlenecks.",
+      "Review the timeout settings and consider increasing them if the service is under heavy load.",
+      "Investigate any recent changes or deployments that might have affected the NotificationService performance."
+    ],
+    "analyst_root_cause": "The NotificationService is experiencing a timeout error, which suggests that it may be unable to process requests within the expected time frame.",
+    "analyst_resolution": "['Check the server load and performance metrics for the NotificationService to identify any bottlenecks.', 'Review the timeout settings and consider increasing them if the service is under heavy load.', 'Investigate any recent changes or deployments that might have affected the NotificationService performances.']",
+    "confidence_score_at_time": null
+  },
+  {
+    "case_number": "00001027",
+    "timestamp": "2026-02-17T01:23:29.246790",
+    "feedback_type": "correct",
+    "ai_root_cause": "The NotificationService is experiencing Kafka consumer timeouts due to increased consumer lag, likely caused by insufficient consumer instances to handle the current load. The logs confirm the presence of TimeoutException, indicating a failure to fetch topic metadata in a timely manner, which aligns with the observed consumer lag increase.",
+    "ai_resolution": [
+      "Scale out the consumer instances to handle the increased load.",
+      "Monitor the consumer lag metrics to ensure they remain within acceptable thresholds.",
+      "Review Kafka broker configurations for any potential bottlenecks.",
+      "Ensure that the Kafka consumer configurations, such as session timeout and fetch max wait time, are optimized for the current load."
+    ],
+    "analyst_root_cause": null,
+    "analyst_resolution": null,
+    "confidence_score_at_time": null
+  }
+]

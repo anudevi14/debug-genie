@@ -149,6 +149,63 @@ class AIAnalyzer:
         json_output = response.choices[0].message.content
         return self._validate_and_parse(json_output)
 
+    def reanalyze_with_logs(self, ticket_data, initial_rca, log_summary_text, vision_data=None, historical_context=None):
+        """
+        Phase 7: Performs an enhanced re-analysis using log evidence.
+        """
+        system_prompt = (
+            "You are a Senior Production Support Engineer performing a Phase 2 Deep Dive. "
+            "You already have an Initial RCA, but now you have been provided with real-time Splunk Log Evidence. "
+            "Your goal is to provide an ENHANCED RCA that correlates the logs with the ticket description, "
+            "screenshots, and historical memory."
+            "\n\n"
+            "### RE-ANALYSIS RULES:\n"
+            "1. **Confirm or Contradict**: If logs confirm the initial suspicious service, increase confidence. If they contradict, pivot the RCA.\n"
+            "2. **Precision**: Use specific details from logs (exception names, specific timestamps, error counts) to refine the probable root cause.\n"
+            "3. **Recalibrate Confidence**: Follow these logic rules for the `enhanced_confidence_score`:\n"
+            "   - If logs confirm the memory match: +10% score.\n"
+            "   - If logs confirm visual evidence: +5% score.\n"
+            "   - If logs contradict memory: -10% score.\n"
+            "   - If exceptions in logs don't match the ticket context: -15% score.\n"
+            "\n"
+            "You MUST return the output as a STRICT JSON object with these keys:\n"
+            "- enhanced_root_cause: Refined explanation using log evidence.\n"
+            "- enhanced_resolution: Specific mitigation steps based on specific log findings.\n"
+            "- log_correlation_summary: Briefly explain how the logs matched (or didn't) the initial findings.\n"
+            "- enhanced_confidence_score: number (0-100).\n"
+            "- confidence_change_reason: string explanation of the score movement.\n"
+            "- dominant_exception: The main error found in logs.\n"
+            "- impactedService: Final confirmed service.\n"
+            "\n"
+            "Do NOT include any commentary outside the JSON block."
+        )
+
+        user_content = (
+            "--- CONTEXT ---\n"
+            f"TICKET DATA: {ticket_data}\n"
+            f"INITIAL RCA: {json.dumps(initial_rca)}\n"
+            f"LOG EVIDENCE SUMMARY: {log_summary_text}\n"
+        )
+        
+        if vision_data:
+            user_content += f"VISION FINDINGS: {json.dumps(vision_data)}\n"
+        
+        if historical_context:
+            user_content += f"HISTORICAL MATCH: {historical_context['ticket_number']} (Verified: {historical_context.get('full_entry', {}).get('verified')})\n"
+
+        response = self.client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content}
+            ],
+            temperature=0.1,
+            response_format={"type": "json_object"}
+        )
+
+        json_output = response.choices[0].message.content
+        return json.loads(json_output) # Using basic json.loads here for simplicity as we trust gpt-4o with json_object mode
+
     def _validate_and_parse(self, json_str):
         """Ensure the output is valid JSON and contains required keys."""
         try:

@@ -70,7 +70,7 @@ class MemoryManager:
         except Exception as e:
             print(f"Error saving memory: {e}")
 
-    def submit_feedback(self, case_number, feedback_type, ai_output, analyst_correction=None, confidence_score=None):
+    def submit_feedback(self, case_number, feedback_type, ai_output, analyst_correction=None, confidence_score=None, text=None, embedding=None):
         """
         Record analyst feedback and update memory reliability.
         feedback_type: 'correct' | 'incorrect' | 'edited'
@@ -97,8 +97,10 @@ class MemoryManager:
             json.dump(feedbacks, f, indent=2)
 
         # 2. Update primary memory state for future similarity
+        found = False
         for entry in self.memory:
             if entry["case_number"] == case_number:
+                found = True
                 entry["feedback_count"] += 1
                 entry["last_feedback_at"] = datetime.now().date().isoformat()
                 
@@ -120,11 +122,23 @@ class MemoryManager:
                     entry["ai_resolution"] = ai_output.get("recommendedSteps")
                 
                 break
-        else:
-            # Entry not found (e.g. feedback on a brand new ticket not yet in backfill)
-            # We can optionally add it here if text/embedding were available.
-            # For now, let's assume it should be in memory before feedback.
-            pass
+        
+        if not found and text and embedding:
+            # Create new memory entry if it didn't exist
+            new_entry = {
+                "case_number": case_number,
+                "text": text,
+                "embedding": embedding,
+                "ai_root_cause": ai_output.get("probableRootCause", "N/A"),
+                "ai_resolution": ai_output.get("recommendedSteps", "N/A"),
+                "analyst_root_cause": analyst_correction.get("root_cause") if analyst_correction else None,
+                "analyst_resolution": analyst_correction.get("resolution") if analyst_correction else None,
+                "verified": feedback_type in ["correct", "edited"],
+                "reliability_score": 1.0 if feedback_type == "edited" else (0.75 if feedback_type == "correct" else 0.5),
+                "feedback_count": 1,
+                "last_feedback_at": datetime.now().date().isoformat()
+            }
+            self.memory.append(new_entry)
 
         try:
             with open(self.storage_path, "w") as f:
