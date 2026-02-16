@@ -204,27 +204,33 @@ class AIAnalyzer:
         )
 
         json_output = response.choices[0].message.content
-        return json.loads(json_output) # Using basic json.loads here for simplicity as we trust gpt-4o with json_object mode
+        return self._validate_and_parse(json_output, mode="enhanced")
 
-    def _validate_and_parse(self, json_str):
+    def _validate_and_parse(self, json_str, mode="initial"):
         """Ensure the output is valid JSON and contains required keys."""
         try:
             data = json.loads(json_str)
-            required_keys = [
-                "impactedService", "probableRootCause", "splunkQuerySuggestion", 
-                "recommendedSteps", "confidence", "confidence_score", "confidence_reasoning",
-                "isRepeatedIssue", "similarTicketReference", "similarityScore", "visualEvidenceUsed"
-            ]
+            if mode == "initial":
+                required_keys = [
+                    "impactedService", "probableRootCause", "splunkQuerySuggestion", 
+                    "recommendedSteps", "confidence", "confidence_score", "confidence_reasoning",
+                    "isRepeatedIssue", "similarTicketReference", "similarityScore", "visualEvidenceUsed"
+                ]
+            else:
+                required_keys = [
+                    "enhanced_root_cause", "enhanced_resolution", "log_correlation_summary",
+                    "enhanced_confidence_score", "confidence_change_reason", "dominant_exception",
+                    "impactedService"
+                ]
+                
             for key in required_keys:
-                if key not in data:
+                if key not in data or data[key] is None:
                     if key == "isRepeatedIssue":
                         data[key] = False
-                    elif key == "similarityScore":
-                        data[key] = 0.0
-                    elif key == "confidence_score":
+                    elif "score" in key:
                         data[key] = 50.0
-                    elif key == "visualEvidenceUsed":
-                        data[key] = False
+                    elif "similarity" in key:
+                        data[key] = 0.0
                     else:
                         data[key] = "N/A"
             return data

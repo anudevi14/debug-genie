@@ -9,7 +9,18 @@ from memory_manager import MemoryManager
 from log_parser import LogParser
 
 # Page Configuration
-st.set_page_config(page_title="DebugGenie - AI Production Copilot", page_icon="🕵️")
+st.set_page_config(
+    page_title="DebugGenie - AI Production Copilot", 
+    page_icon="🕵️",
+    layout="wide"
+)
+
+# Custom CSS Injection
+def local_css(file_name):
+    with open(file_name) as f:
+        st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+
+local_css("style.css")
 
 # Initialize Clients
 @st.cache_resource
@@ -39,268 +50,304 @@ if "analysis_result" not in st.session_state:
         "log_summary": None
     })
 
-# UI Layout
-st.title("DebugGenie – AI Production Copilot")
+# Main Header
+st.markdown('<div class="main-header">DebugGenie</div>', unsafe_allow_html=True)
+st.markdown("#### Modern AI Production Copilot & RCA Engine")
 
 if Config.MOCK_MODE:
     st.warning("⚠️ **Running in Mock Mode**: Data is hardcoded. Set `DEBUG_GENIE_MOCK_MODE=false` in `.env` to use real Salesforce data.")
 
-st.markdown("Enter a Salesforce Ticket Number to generate a Root Cause Analysis (RCA).")
-
 # Sidebar for Semantic Memory Management
 with st.sidebar:
-    st.header("🧠 Semantic Memory")
+    st.markdown("### 🧠 Semantic Intelligence")
     if memory_manager:
         stats = memory_manager.get_memory_stats()
-        st.write(f"Knowledge Base: **{stats['entry_count']}** tickets")
-        st.write(f"Verified Patterns: **{stats['verified_count']}**")
-        st.write(f"Avg Reliability: **{stats['avg_reliability']:.2f}**")
+        st.metric("Knowledge Base", f"{stats['entry_count']} Tickets")
+        st.metric("Verified Patterns", f"{stats['verified_count']}")
+        st.progress(stats['verified_count'] / max(stats['entry_count'], 1))
+        st.caption(f"Avg Reliability Score: {stats['avg_reliability']:.2f}")
     
-    if st.button("🔄 Sync & Backfill Memory"):
+    st.markdown("---")
+    if st.button("🔄 Sync & Backfill Knowledge"):
         if not sf_client:
             st.error("Salesforce client not initialized.")
         else:
             memory_manager.reload()
-            with st.spinner("Fetching non-new tickets from Salesforce..."):
+            with st.spinner("Backfilling semantic memory..."):
                 historical_cases = sf_client.fetch_historical_cases(limit=100, filter_non_new=True)
                 
-            if not historical_cases:
-                st.info("No historical tickets found to backfill.")
-            else:
+            if historical_cases:
                 progress_bar = st.progress(0)
-                status_text = st.empty()
                 new_entries = []
-                
                 for i, case in enumerate(historical_cases):
                     case_num = case["CaseNumber"]
-                    status_text.text(f"Processing #{case_num}...")
-                    
-                    if any(e["case_number"] == case_num for e in memory_manager.get_all_entries()):
-                        progress_bar.progress((i + 1) / len(historical_cases))
-                        continue
-                    
-                    text = sf_client.get_ticket_text_for_comparison(case)
-                    embedding = ai_analyzer.get_embedding(text)
-                    
-                    new_entries.append({
-                        "case_number": case_num,
-                        "text": text,
-                        "embedding": embedding,
-                        "root_cause": "N/A (Historical)",
-                        "resolution": "N/A (Historical)"
-                    })
+                    if not any(e["case_number"] == case_num for e in memory_manager.get_all_entries()):
+                        text = sf_client.get_ticket_text_for_comparison(case)
+                        embedding = ai_analyzer.get_embedding(text)
+                        new_entries.append({
+                            "case_number": case_num, "text": text, "embedding": embedding,
+                            "root_cause": "N/A (Historical)", "resolution": "N/A (Historical)"
+                        })
                     progress_bar.progress((i + 1) / len(historical_cases))
                 
                 if new_entries:
                     memory_manager.save_memory(new_entries)
-                    st.success(f"Added {len(new_entries)} new tickets to semantic memory!")
+                    st.success(f"Added {len(new_entries)} tickets!")
                     st.rerun()
-                else:
-                    st.info("Semantic memory is already up to date.")
 
+# Search Section in a Card
 with st.form("analysis_form"):
-    ticket_input = st.text_input("Salesforce Ticket Number", placeholder="e.g. 12345678")
-    submit_button = st.form_submit_button("Analyze")
+    col_input, col_btn = st.columns([4, 1])
+    ticket_input = col_input.text_input("Enter Salesforce Ticket Number", placeholder="e.g. 12345678", label_visibility="collapsed")
+    submit_button = col_btn.form_submit_button("Start Analysis")
 
 if submit_button:
     if not ticket_input:
         st.warning("Please enter a ticket number.")
     elif not sf_client or not ai_analyzer:
-        st.error("System is not properly configured. Please check environment variables.")
+        st.error("System configuration error.")
     else:
         try:
-            # Re-initialize state for new search
             st.session_state.update({
-                "analysis_result": None,
-                "case_num": ticket_input,
-                "vision_data": None,
-                "ticket_data": None,
-                "text_for_embedding": None,
-                "current_embedding": None,
-                "similar_match": None,
-                "feedback_submitted": False,
-                "hist_context": None,
-                "enhanced_result": None,
-                "log_summary": None
+                "analysis_result": None, "case_num": ticket_input, "vision_data": None,
+                "ticket_data": None, "text_for_embedding": None, "current_embedding": None,
+                "similar_match": None, "feedback_submitted": False, "hist_context": None,
+                "enhanced_result": None, "log_summary": None
             })
 
-            # 1. Fetch Current Ticket
-            with st.spinner(f"Fetching Ticket #{ticket_input}..."):
+            with st.status("Performing Deep Investigation...", expanded=True) as status:
+                st.write("🔍 Fetching Ticket Data...")
                 ticket_data, case_obj = sf_client.get_full_ticket_data(ticket_input)
-            
-            if not ticket_data:
-                st.error(f"Ticket #{ticket_input} not found in Salesforce.")
-            else:
+                if not ticket_data:
+                    st.error(f"Ticket #{ticket_input} not found.")
+                    st.stop()
                 st.session_state.ticket_data = ticket_data
-                
-                # 2. Handle Screenshots (Vision)
-                with st.spinner("Checking for screenshot attachments..."):
-                    attachments = sf_client.fetch_case_attachments(case_obj["Id"])
-                
+
+                st.write("📸 Inspecting Attachments & Screenshots...")
+                attachments = sf_client.fetch_case_attachments(case_obj["Id"])
                 if attachments:
                     attach = attachments[0]
-                    with st.spinner(f"Extracting visual evidence from {attach['Name']}..."):
-                        img_base64 = sf_client.get_attachment_content(attach["Id"], source=attach.get("Source", "Attachment"))
-                        st.session_state.vision_data = ai_analyzer.vision_extract(img_base64, content_type=attach.get("ContentType", "image/jpeg"))
-                
-                # 3. Semantic Similarity Matching
+                    img_base64 = sf_client.get_attachment_content(attach["Id"], source=attach.get("Source", "Attachment"))
+                    st.session_state.vision_data = ai_analyzer.vision_extract(img_base64, content_type=attach.get("ContentType", "image/jpeg"))
+
+                st.write("🧠 Querying Semantic Memory...")
                 text_for_embedding = sf_client.get_ticket_text_for_comparison(case_obj)
                 if st.session_state.vision_data:
                     text_for_embedding += f"\nVisual Markers: {json.dumps(st.session_state.vision_data)}"
-                
                 st.session_state.text_for_embedding = text_for_embedding
                 
-                with st.spinner("Searching semantic memory..."):
-                    current_embedding = ai_analyzer.get_embedding(text_for_embedding)
-                    st.session_state.current_embedding = current_embedding
-                    memory_entries = memory_manager.get_all_entries()
-                    similar_match, score = similarity_engine.find_most_similar_semantic(current_embedding, memory_entries)
+                current_embedding = ai_analyzer.get_embedding(text_for_embedding)
+                st.session_state.current_embedding = current_embedding
+                similar_match, score = similarity_engine.find_most_similar_semantic(current_embedding, memory_manager.get_all_entries())
                 
                 if similar_match:
                     st.session_state.similar_match = (similar_match, score)
                     st.session_state.hist_context = {
-                        "ticket_number": similar_match['case_number'],
-                        "score": round(float(score), 2),
-                        "content": similar_match['text'],
-                        "full_entry": similar_match
+                        "ticket_number": similar_match['case_number'], "score": round(float(score), 2),
+                        "content": similar_match['text'], "full_entry": similar_match
                     }
 
-                # 4. Analyze with AI
-                with st.spinner("Generating Explainable RCA..."):
-                    st.session_state.analysis_result = ai_analyzer.analyze_ticket(
-                        ticket_data, 
-                        historical_context=st.session_state.hist_context, 
-                        vision_data=st.session_state.vision_data
-                    )
+                st.write("🤖 Generating Autonomous RCA...")
+                st.session_state.analysis_result = ai_analyzer.analyze_ticket(
+                    ticket_data, historical_context=st.session_state.hist_context, vision_data=st.session_state.vision_data
+                )
                 
-                # Auto-Register into Memory
+                st.write("💾 Registering Evidence in knowledge base...")
                 memory_manager.save_memory([{
-                    "case_number": ticket_input,
-                    "text": st.session_state.text_for_embedding,
+                    "case_number": ticket_input, "text": st.session_state.text_for_embedding,
                     "embedding": st.session_state.current_embedding,
                     "root_cause": st.session_state.analysis_result.get("probableRootCause"),
                     "resolution": st.session_state.analysis_result.get("recommendedSteps")
                 }])
+                status.update(label="Investigation Complete!", state="complete", expanded=False)
 
-                st.rerun()
+            st.rerun()
                     
         except Exception as e:
-            st.error(f"An error occurred: {str(e)}")
+            st.error(f"Error during analysis: {str(e)}")
 
-# Display Results if they exist in session_state
+# Helper: Custom SVG Gauge
+def confidence_gauge(score):
+    color = "#00F2FE" if score > 85 else ("#4FACFE" if score > 70 else "#F43F5E")
+    gauge_html = f"""
+    <div style="display: flex; justify-content: center; align-items: center; padding: 20px;">
+        <svg width="200" height="200" viewBox="0 0 200 200">
+            <circle cx="100" cy="100" r="90" fill="none" stroke="#1E293B" stroke-width="12" />
+            <circle cx="100" cy="100" r="90" fill="none" stroke="{color}" stroke-width="12" 
+                stroke-dasharray="{565 * score / 100} 565" stroke-linecap="round" 
+                transform="rotate(-90 100 100)" style="transition: stroke-dasharray 1s ease-in-out;" />
+            <text x="50%" y="50%" text-anchor="middle" dy=".3em" class="gauge-label">{score}%</text>
+        </svg>
+    </div>
+    """
+    st.markdown(gauge_html, unsafe_allow_html=True)
+
+# DISPLAY RESULTS
 if st.session_state.analysis_result:
     res = st.session_state.analysis_result
     
-    # 📋 Header Indicators
-    st.markdown("### 📋 Stage 1: Initial RCA Results")
-    
-    col_vis, col_mem = st.columns(2)
-    if st.session_state.vision_data:
-        col_vis.success("📸 Vision Findings Integrated")
-        with col_vis.expander("Peek Visual Markers"):
-            st.json(st.session_state.vision_data)
-    if st.session_state.similar_match:
-        col_mem.info(f"🧠 Matched Pattern: #{st.session_state.similar_match[0]['case_number']}")
+    # Dashboard Tabs
+    tab_rca, tab_logs, tab_audit = st.tabs(["🎯 Stage 1: Initial RCA", "🔍 Stage 2: Log Deep-Dive", "📂 Technical Audit Trail"])
 
-    # Initial Confidence Meter
-    conf_score = res.get("confidence_score", 0)
-    conf_color = "green" if conf_score > 90 else ("orange" if conf_score > 70 else "red")
-    st.progress(conf_score / 100)
-    st.markdown(f"**Initial Confidence:** :{conf_color}[{conf_score}%]")
-    
-    with st.expander("Expand Initial RCA Details"):
-        st.json(res)
-
-    # 🚀 Phase 7: Log Enrichment Section
-    st.markdown("---")
-    st.subheader("🕵️ Deep Dive: Assisted Log Correlation")
-    st.write("Provide Splunk logs to refine the analysis and validate technical evidence.")
-    
-    with st.expander("Upload/Paste Logs for Enhanced Analysis"):
-        log_input = st.text_area("Paste Splunk Logs here...", height=150)
-        log_file = st.file_uploader("Or upload log file", type=["log", "txt"])
+    with tab_rca:
+        col_res, col_gauge = st.columns([3, 2])
         
-        final_log_text = ""
-        if log_input:
-            final_log_text = log_input
-        elif log_file:
-            final_log_text = log_file.read().decode("utf-8")
+        with col_res:
+            st.markdown(f"### Root Cause Analysis for #{st.session_state.case_num}")
             
-        if st.button("🔍 Run Log-Enriched Re-Analysis"):
-            if not final_log_text:
-                st.warning("Please provide log content.")
+            badge_html = ""
+            if st.session_state.vision_data:
+                badge_html += '<span style="background:#00F2FE; color:#0e1117; padding:4px 10px; border-radius:100px; font-weight:800; font-size:12px; margin-right:8px;">VISION ACTIVE</span>'
+            if st.session_state.similar_match:
+                badge_html += f'<span style="background:#4FACFE; color:white; padding:4px 10px; border-radius:100px; font-weight:800; font-size:12px;">PATTERN MATCH: {res.get("similarityScore", 0.0)}</span>'
+            st.markdown(badge_html, unsafe_allow_html=True)
+            
+            st.markdown("#### impacted Service")
+            st.info(f"📍 **{res.get('impactedService', 'Unknown')}**")
+
+            st.markdown("#### root Cause Hypothesis")
+            root_cause = res.get("probableRootCause") or "N/A"
+            st.markdown(f'<div class="analysis-box">{root_cause}</div>', unsafe_allow_html=True)
+
+            st.markdown("#### recommended Mitigation")
+            raw_steps = res.get("recommendedSteps") or ""
+            steps = raw_steps if isinstance(raw_steps, list) else raw_steps.split(". ")
+            for step in steps:
+                if step:
+                    st.markdown(f'<div class="action-card">🛠️ {step.strip().strip(".")}</div>', unsafe_allow_html=True)
+
+            # Restored Missing Details
+            if res.get("splunkQuerySuggestion") and res.get("splunkQuerySuggestion") != "N/A":
+                st.markdown("#### suggested Splunk Query")
+                st.code(res.get("splunkQuerySuggestion"), language="spl")
+
+            if res.get("isRepeatedIssue"):
+                st.markdown("#### 🔄 Repeated Issue Detected")
+                st.warning(f"Similar Case: **{res.get('similarTicketReference')}**")
+        
+        with col_gauge:
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown('<div style="text-align: center;">', unsafe_allow_html=True)
+            st.markdown("### Confidence")
+            confidence_gauge(res.get("confidence_score", 0))
+            st.markdown(f'<p style="color:var(--text-secondary);">{res.get("confidence_reasoning")}</p>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+            # Feedback & Expert Validation
+            st.markdown("---")
+            st.markdown("##### Expert Validation")
+            
+            if st.session_state.feedback_submitted:
+                st.success("✅ Feedback saved to Knowledge Base!")
+                if st.button("Provide New Feedback"):
+                    st.session_state.feedback_submitted = False
+                    st.rerun()
             else:
-                with st.spinner("Analyzing log patterns..."):
-                    summary = log_parser.parse(final_log_text)
-                    st.session_state.log_summary = summary
+                f1, f2, f3 = st.columns([1, 1, 1])
                 
-                if summary:
-                    with st.spinner("Correlating logs with RCA..."):
-                        log_summary_text = log_parser.format_for_ai(summary)
-                        enhanced = ai_analyzer.reanalyze_with_logs(
-                            st.session_state.ticket_data,
-                            st.session_state.analysis_result,
-                            log_summary_text,
-                            vision_data=st.session_state.vision_data,
-                            historical_context=st.session_state.hist_context
-                        )
-                        st.session_state.enhanced_result = enhanced
+                # Correction Mode Toggle
+                if "edit_mode" not in st.session_state:
+                    st.session_state.edit_mode = False
+                
+                if f1.button("✅ Accurate", use_container_width=True):
+                    fb = {"probableRootCause": res.get("probableRootCause"), "recommendedSteps": res.get("recommendedSteps")}
+                    memory_manager.submit_feedback(st.session_state.case_num, "correct", fb, text=st.session_state.text_for_embedding, embedding=st.session_state.current_embedding)
+                    st.session_state.feedback_submitted = True
+                    st.rerun()
+                
+                if f2.button("❌ Inaccurate", use_container_width=True):
+                    fb = {"probableRootCause": res.get("probableRootCause"), "recommendedSteps": res.get("recommendedSteps")}
+                    memory_manager.submit_feedback(st.session_state.case_num, "incorrect", fb, text=st.session_state.text_for_embedding, embedding=st.session_state.current_embedding)
+                    st.session_state.feedback_submitted = True
                     st.rerun()
 
-    # 🌟 Display Enhanced Results
-    if st.session_state.enhanced_result:
-        e_res = st.session_state.enhanced_result
-        st.markdown("### 🌟 Stage 2: Enhanced RCA (Log-Enriched)")
-        
-        e_conf = e_res.get("enhanced_confidence_score", 0)
-        e_color = "green" if e_conf > 90 else ("orange" if e_conf > 70 else "red")
-        
-        st.progress(e_conf / 100)
-        delta = e_conf - conf_score
-        st.markdown(f"**Enhanced Confidence:** :{e_color}[{e_conf}%] ({'+' if delta >= 0 else ''}{delta}%)")
-        st.info(f"**Reasoning Change:** {e_res.get('confidence_change_reason')}")
+                if f3.button("📝 Edit", use_container_width=True):
+                    st.session_state.edit_mode = not st.session_state.edit_mode
+                
+                if st.session_state.edit_mode:
+                    with st.form("edit_rca_form"):
+                        st.markdown("#### analyst Correction")
+                        new_rc = st.text_area("Correct Root Cause", value=res.get("probableRootCause"))
+                        new_steps = st.text_area("Correct Resolution Steps", value=res.get("recommendedSteps") if isinstance(res.get("recommendedSteps"), str) else ". ".join(res.get("recommendedSteps")))
+                        
+                        if st.form_submit_button("Save Corrections"):
+                            fb = {"probableRootCause": new_rc, "recommendedSteps": new_steps}
+                            memory_manager.submit_feedback(st.session_state.case_num, "correct", fb, text=st.session_state.text_for_embedding, embedding=st.session_state.current_embedding)
+                            st.session_state.feedback_submitted = True
+                            st.session_state.edit_mode = False
+                            st.rerun()
 
-        st.json(e_res)
+    with tab_logs:
+        st.markdown("### Log-Aware Investigation Engine")
+        st.write("Upload Splunk logs to dynamically recalibrate the RCA and confidence scores.")
         
-        if st.session_state.log_summary:
-            with st.expander("Structured Log Insights"):
-                st.json(st.session_state.log_summary)
+        l_col1, l_col2 = st.columns([2, 1])
+        with l_col1:
+            log_input = st.text_area(
+                "Paste Raw Logs", 
+                height=200, 
+                placeholder="Starting Splunk log dump here...",
+                key=f"log_input_{st.session_state.case_num}"
+            )
+        with l_col2:
+            uploaded_log = st.file_uploader(
+                "Or Upload .log file", 
+                type=["log", "txt"],
+                key=f"log_file_{st.session_state.case_num}"
+            )
+        
+        log_txt = log_input or (uploaded_log.read().decode("utf-8") if uploaded_log else "")
+        if st.button("🚀 Re-Analyze with Logs", use_container_width=True):
+            if not log_txt:
+                st.warning("Please provide logs for re-analysis.")
+            else:
+                with st.spinner("Correlating log signals with ticket context..."):
+                    summary = log_parser.parse(log_txt)
+                    st.session_state.log_summary = summary
+                    enhanced = ai_analyzer.reanalyze_with_logs(
+                        st.session_state.ticket_data, st.session_state.analysis_result,
+                        log_parser.format_for_ai(summary), vision_data=st.session_state.vision_data,
+                        historical_context=st.session_state.hist_context
+                    )
+                    st.session_state.enhanced_result = enhanced
+                st.rerun()
+        
+        if st.session_state.enhanced_result:
+            st.markdown("---")
+            e_res = st.session_state.enhanced_result
+            col_e1, col_e2 = st.columns([3, 2])
+            
+            with col_e1:
+                st.markdown("#### 🌟 Log-Enriched diagnosis")
+                st.success(f"**Root Cause:** {e_res.get('enhanced_root_cause')}")
+                st.markdown(f"**Recalibration Reason:** {e_res.get('confidence_change_reason')}")
+                
+                st.markdown("#### Actionable steps")
+                e_steps = e_res.get("enhanced_resolution") or ""
+                e_steps_list = e_steps if isinstance(e_steps, list) else e_steps.split(". ")
+                for s in e_steps_list:
+                    if s: st.markdown(f'<div class="action-card">🔥 {s.strip().strip(".")}</div>', unsafe_allow_html=True)
+            
+            with col_e2:
+                st.markdown('<div style="text-align: center;">', unsafe_allow_html=True)
+                st.markdown("#### Enhanced Confidence")
+                confidence_gauge(e_res.get("enhanced_confidence_score", 0))
+                st.markdown('</div>', unsafe_allow_html=True)
 
-    # Feedback Section
-    st.markdown("---")
-    st.subheader("📝 Analyst Feedback")
-    if st.session_state.feedback_submitted:
-        st.success("✅ Feedback successfully saved to knowledge base!")
-    else:
-        # feedback on final result
-        final_rca = st.session_state.enhanced_result or st.session_state.analysis_result
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("✅ Outcome Correct"):
-                fb_rca = {
-                    "probableRootCause": final_rca.get("enhanced_root_cause") or final_rca.get("probableRootCause"),
-                    "recommendedSteps": final_rca.get("enhanced_resolution") or final_rca.get("recommendedSteps")
-                }
-                memory_manager.submit_feedback(
-                    st.session_state.case_num, "correct", fb_rca,
-                    text=st.session_state.text_for_embedding,
-                    embedding=st.session_state.current_embedding
-                )
-                st.session_state.feedback_submitted = True
-                st.rerun()
-        with col2:
-            if st.button("❌ Outcome Incorrect"):
-                fb_rca = {
-                    "probableRootCause": final_rca.get("enhanced_root_cause") or final_rca.get("probableRootCause"),
-                    "recommendedSteps": final_rca.get("enhanced_resolution") or final_rca.get("recommendedSteps")
-                }
-                memory_manager.submit_feedback(
-                    st.session_state.case_num, "incorrect", fb_rca,
-                    text=st.session_state.text_for_embedding,
-                    embedding=st.session_state.current_embedding
-                )
-                st.session_state.feedback_submitted = True
-                st.rerun()
+    with tab_audit:
+        st.markdown("### Technical Evidence & Audit Trail")
+        a1, a2, a3 = st.tabs(["Case JSON", "Vision Analytics", "Knowledge Base Match"])
+        with a1: st.code(json.dumps(st.session_state.ticket_data, indent=2), language="json")
+        with a2: 
+            if st.session_state.vision_data: st.json(st.session_state.vision_data)
+            else: st.write("No visual evidence detected.")
+        with a3:
+            if st.session_state.similar_match:
+                # Filter out embedding for clean display
+                match_data = st.session_state.similar_match[0].copy()
+                match_data.pop("embedding", None)
+                st.json(match_data)
+            else: st.write("No similar historical patterns found.")
 
 st.markdown("---")
-st.caption("Powered by Salesforce, Vision AI, and Splunk Correlation. Stage 2 Investigation Mode active.")
+st.caption("DebugGenie v2.1 Pro | High-Contrast investigative Dashboard")

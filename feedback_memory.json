@@ -41,5 +41,173 @@
     "analyst_root_cause": null,
     "analyst_resolution": null,
     "confidence_score_at_time": null
+  },
+  {
+    "case_number": "00001027",
+    "timestamp": "2026-02-17T01:52:02.579123",
+    "feedback_type": "correct",
+    "ai_root_cause": "The Kafka consumer in the NotificationService is experiencing timeouts due to increased consumer lag, likely caused by insufficient consumer instances to handle the current load.",
+    "ai_resolution": [
+      "Scale out the Kafka consumer instances for the NotificationService to handle the increased load.",
+      "Monitor the consumer lag and adjust the number of instances dynamically based on the load patterns.",
+      "Review the Kafka broker configurations to ensure optimal performance and reduce the likelihood of timeouts."
+    ],
+    "analyst_root_cause": null,
+    "analyst_resolution": null,
+    "confidence_score_at_time": null
+  },
+  {
+    "case_number": "00001027",
+    "timestamp": "2026-02-17T01:52:07.744627",
+    "feedback_type": "correct",
+    "ai_root_cause": "The Kafka consumer in the NotificationService is experiencing timeouts due to increased consumer lag, likely caused by insufficient consumer instances to handle the current load.",
+    "ai_resolution": [
+      "Scale out the Kafka consumer instances for the NotificationService to handle the increased load.",
+      "Monitor the consumer lag and adjust the number of instances dynamically based on the load patterns.",
+      "Review the Kafka broker configurations to ensure optimal performance and reduce the likelihood of timeouts."
+    ],
+    "analyst_root_cause": null,
+    "analyst_resolution": null,
+    "confidence_score_at_time": null
+  },
+  {
+    "case_number": "00001027",
+    "timestamp": "2026-02-17T01:52:10.352482",
+    "feedback_type": "correct",
+    "ai_root_cause": "The Kafka consumer in the NotificationService is experiencing timeouts due to increased consumer lag, likely caused by insufficient consumer instances to handle the current load.",
+    "ai_resolution": [
+      "Scale out the Kafka consumer instances for the NotificationService to handle the increased load.",
+      "Monitor the consumer lag and adjust the number of instances dynamically based on the load patterns.",
+      "Review the Kafka broker configurations to ensure optimal performance and reduce the likelihood of timeouts."
+    ],
+    "analyst_root_cause": null,
+    "analyst_resolution": null,
+    "confidence_score_at_time": null
+  },
+  {
+    "case_number": "00001027",
+    "timestamp": "2026-02-17T01:52:11.041374",
+    "feedback_type": "correct",
+    "ai_root_cause": "The Kafka consumer in the NotificationService is experiencing timeouts due to increased consumer lag, likely caused by insufficient consumer instances to handle the current load.",
+    "ai_resolution": [
+      "Scale out the Kafka consumer instances for the NotificationService to handle the increased load.",
+      "Monitor the consumer lag and adjust the number of instances dynamically based on the load patterns.",
+      "Review the Kafka broker configurations to ensure optimal performance and reduce the likelihood of timeouts."
+    ],
+    "analyst_root_cause": null,
+    "analyst_resolution": null,
+    "confidence_score_at_time": null
+  },
+  {
+    "case_number": "00001027",
+    "timestamp": "2026-02-17T01:52:11.917374",
+    "feedback_type": "correct",
+    "ai_root_cause": "The Kafka consumer in the NotificationService is experiencing timeouts due to increased consumer lag, likely caused by insufficient consumer instances to handle the current load.",
+    "ai_resolution": [
+      "Scale out the Kafka consumer instances for the NotificationService to handle the increased load.",
+      "Monitor the consumer lag and adjust the number of instances dynamically based on the load patterns.",
+      "Review the Kafka broker configurations to ensure optimal performance and reduce the likelihood of timeouts."
+    ],
+    "analyst_root_cause": null,
+    "analyst_resolution": null,
+    "confidence_score_at_time": null
+  },
+  {
+    "case_number": "00001027",
+    "timestamp": "2026-02-17T01:52:13.406567",
+    "feedback_type": "correct",
+    "ai_root_cause": "The Kafka consumer in the NotificationService is experiencing timeouts due to increased consumer lag, likely caused by insufficient consumer instances to handle the current load.",
+    "ai_resolution": [
+      "Scale out the Kafka consumer instances for the NotificationService to handle the increased load.",
+      "Monitor the consumer lag and adjust the number of instances dynamically based on the load patterns.",
+      "Review the Kafka broker configurations to ensure optimal performance and reduce the likelihood of timeouts."
+    ],
+    "analyst_root_cause": null,
+    "analyst_resolution": null,
+    "confidence_score_at_time": null
+  },
+  {
+    "case_number": "00001027",
+    "timestamp": "2026-02-17T01:52:13.954817",
+    "feedback_type": "correct",
+    "ai_root_cause": "The Kafka consumer in the NotificationService is experiencing timeouts due to increased consumer lag, likely caused by insufficient consumer instances to handle the current load.",
+    "ai_resolution": [
+      "Scale out the Kafka consumer instances for the NotificationService to handle the increased load.",
+      "Monitor the consumer lag and adjust the number of instances dynamically based on the load patterns.",
+      "Review the Kafka broker configurations to ensure optimal performance and reduce the likelihood of timeouts."
+    ],
+    "analyst_root_cause": null,
+    "analyst_resolution": null,
+    "confidence_score_at_time": null
+  },
+  {
+    "case_number": "00001027",
+    "timestamp": "2026-02-17T01:52:14.366192",
+    "feedback_type": "correct",
+    "ai_root_cause": "The Kafka consumer in the NotificationService is experiencing timeouts due to increased consumer lag, likely caused by insufficient consumer instances to handle the current load.",
+    "ai_resolution": [
+      "Scale out the Kafka consumer instances for the NotificationService to handle the increased load.",
+      "Monitor the consumer lag and adjust the number of instances dynamically based on the load patterns.",
+      "Review the Kafka broker configurations to ensure optimal performance and reduce the likelihood of timeouts."
+    ],
+    "analyst_root_cause": null,
+    "analyst_resolution": null,
+    "confidence_score_at_time": null
+  },
+  {
+    "case_number": "00001027",
+    "timestamp": "2026-02-17T01:52:19.191703",
+    "feedback_type": "correct",
+    "ai_root_cause": "The Kafka consumer in the NotificationService is experiencing timeouts due to increased consumer lag, likely caused by insufficient consumer instances to handle the current load.",
+    "ai_resolution": [
+      "Scale out the Kafka consumer instances for the NotificationService to handle the increased load.",
+      "Monitor the consumer lag and adjust the number of instances dynamically based on the load patterns.",
+      "Review the Kafka broker configurations to ensure optimal performance and reduce the likelihood of timeouts."
+    ],
+    "analyst_root_cause": null,
+    "analyst_resolution": null,
+    "confidence_score_at_time": null
+  },
+  {
+    "case_number": "00001027",
+    "timestamp": "2026-02-17T01:57:20.855660",
+    "feedback_type": "correct",
+    "ai_root_cause": "The Kafka consumer in the NotificationService is experiencing timeouts due to increased consumer lag, likely caused by insufficient consumer instances to handle the current load.",
+    "ai_resolution": [
+      "Scale out the Kafka consumer instances in the NotificationService to handle the increased load.",
+      "Monitor the consumer lag and adjust the number of instances dynamically based on the load.",
+      "Review Kafka broker configurations to ensure optimal performance."
+    ],
+    "analyst_root_cause": null,
+    "analyst_resolution": null,
+    "confidence_score_at_time": null
+  },
+  {
+    "case_number": "00001027",
+    "timestamp": "2026-02-17T01:57:28.413635",
+    "feedback_type": "correct",
+    "ai_root_cause": "The Kafka consumer in the NotificationService is experiencing timeouts due to increased consumer lag, likely caused by insufficient consumer instances to handle the current load.",
+    "ai_resolution": [
+      "Scale out the Kafka consumer instances in the NotificationService to handle the increased load.",
+      "Monitor the consumer lag and adjust the number of instances dynamically based on the load.",
+      "Review Kafka broker configurations to ensure optimal performance."
+    ],
+    "analyst_root_cause": null,
+    "analyst_resolution": null,
+    "confidence_score_at_time": null
+  },
+  {
+    "case_number": "00001028",
+    "timestamp": "2026-02-17T01:58:55.522356",
+    "feedback_type": "correct",
+    "ai_root_cause": "The Order Service is experiencing a 'java.sql.SQLNonTransientConnectionException' due to the database connection pool being exhausted.",
+    "ai_resolution": [
+      "Increase the maximum pool size for the database connections in the Order Service configuration.",
+      "Implement connection pooling best practices to ensure connections are released back to the pool promptly.",
+      "Monitor the database connection usage to identify any unusual patterns or spikes in connection demand."
+    ],
+    "analyst_root_cause": null,
+    "analyst_resolution": null,
+    "confidence_score_at_time": null
   }
 ]

@@ -1,0 +1,200 @@
+/* DebugGenie v2.1 High-Contrast Design System */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+    --primary-blue: #00F2FE;
+    --secondary-blue: #4FACFE;
+    --accent-glow: rgba(0, 242, 254, 0.4);
+
+    /* High Contrast Palette */
+    --bg-deep: #020617;
+    /* Slate 950 */
+    --bg-card: #0F172A;
+    /* Slate 900 */
+    --bg-sidebar: #020617;
+    /* Slate 950 */
+
+    --text-primary: #FFFFFF;
+    /* Pure White */
+    --text-secondary: #94A3B8;
+    /* Slate 400 */
+    --text-muted: #64748B;
+    /* Slate 500 */
+
+    --border-light: rgba(255, 255, 255, 0.1);
+    --border-vibrant: rgba(0, 242, 254, 0.3);
+}
+
+/* Global Styles */
+html,
+body,
+[data-testid="stAppViewContainer"] {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-deep) !important;
+    color: var(--text-primary) !important;
+}
+
+/* Sidebar Overhaul - High Visibility */
+[data-testid="stSidebar"] {
+    background-color: var(--bg-sidebar) !important;
+    border-right: 1px solid var(--border-light);
+}
+
+[data-testid="stSidebar"] * {
+    color: var(--text-primary) !important;
+}
+
+[data-testid="stSidebar"] [data-testid="stMetricValue"] {
+    color: var(--primary-blue) !important;
+    font-size: 2rem !important;
+}
+
+/* Header Gradient */
+.main-header {
+    background: linear-gradient(90deg, var(--primary-blue), var(--secondary-blue));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-weight: 800;
+    font-size: 4rem;
+    letter-spacing: -0.05em;
+    margin-bottom: 0.2rem;
+}
+
+/* Card & Container Polish */
+[data-testid="stForm"],
+[data-testid="stExpander"],
+.glass-card {
+    background: var(--bg-card) !important;
+    border: 1px solid var(--border-light) !important;
+    border-radius: 12px !important;
+    padding: 20px !important;
+    margin-bottom: 20px !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* Form Input Focus */
+.stTextInput input {
+    background-color: var(--bg-deep) !important;
+    border: 1px solid var(--border-light) !important;
+    color: white !important;
+}
+
+.stTextInput input:focus {
+    border-color: var(--primary-blue) !important;
+    box-shadow: 0 0 10px var(--accent-glow) !important;
+}
+
+/* Tabs Styling */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 8px;
+    background-color: transparent;
+}
+
+.stTabs [data-baseweb="tab"] {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: 8px 8px 0 0;
+    padding: 8px 24px;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.stTabs [aria-selected="true"] {
+    background-color: var(--primary-blue) !important;
+    color: var(--bg-deep) !important;
+    border-color: var(--primary-blue) !important;
+}
+
+/* Text visibility in main content */
+p,
+li {
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+h1,
+h2,
+h3,
+b,
+strong,
+label {
+    color: var(--text-primary) !important;
+}
+
+/* File Uploader visibility */
+[data-testid="stFileUploader"] {
+    border: 1px dashed var(--border-vibrant);
+    border-radius: 12px;
+    padding: 10px;
+    background: rgba(0, 242, 254, 0.05);
+}
+
+[data-testid="stFileUploader"] button {
+    background-color: var(--primary-blue) !important;
+    color: var(--bg-deep) !important;
+    font-weight: 700 !important;
+}
+
+/* Custom Metric Styling */
+[data-testid="stMetricValue"] {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: var(--primary-blue);
+}
+
+/* Subheader styling */
+h1,
+h2,
+h3 {
+    font-weight: 700 !important;
+    letter-spacing: -0.02em;
+}
+
+/* Analysis Box */
+.analysis-box,
+.analysis-container {
+    border-left: 4px solid var(--primary-blue);
+    background: rgba(0, 242, 254, 0.05);
+    padding: 15px;
+    border-radius: 0 12px 12px 0;
+}
+
+/* Buttons */
+.stButton>button {
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--primary-blue) 0%, var(--secondary-blue) 100%);
+    color: var(--bg-deep) !important;
+    font-weight: 700 !important;
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.stButton>button:hover {
+    box-shadow: 0 0 20px var(--accent-glow);
+    transform: translateY(-2px);
+    color: white !important;
+}
+
+/* Sidebar */
+[data-testid="stSidebar"] {
+    background-color: #0B0E14;
+    border-right: 1px solid var(--glass-border);
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade {
+    animation: fadeIn 0.6s ease-out;
+}
