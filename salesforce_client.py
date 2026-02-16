@@ -91,11 +91,20 @@ class SalesforceClient:
         comments = [rec["CommentBody"] for rec in records if rec.get("CommentBody")]
         return "\n".join(comments)
 
-    def fetch_historical_cases(self, current_ticket_number, limit=50):
-        """Fetch last N cases excluding the current one."""
+    def fetch_historical_cases(self, current_ticket_number=None, limit=50, filter_non_new=True):
+        """Fetch last N cases excluding the current one, optionally filtering for non-new status."""
+        where_clause = []
+        if current_ticket_number:
+            where_clause.append(f"CaseNumber != '{current_ticket_number}'")
+        
+        if filter_non_new:
+            where_clause.append("Status != 'New'")
+            
+        where_str = " AND ".join(where_clause) if where_clause else "Id != NULL"
+        
         soql = (
             f"SELECT Id, CaseNumber, Subject, Description, CreatedDate "
-            f"FROM Case WHERE CaseNumber != '{current_ticket_number}' "
+            f"FROM Case WHERE {where_str} "
             f"ORDER BY CreatedDate DESC LIMIT {limit}"
         )
         url = f"{self.instance_url}/services/data/v59.0/query"

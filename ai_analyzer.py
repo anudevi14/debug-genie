@@ -6,6 +6,21 @@ class AIAnalyzer:
     def __init__(self):
         self.client = OpenAI(api_key=Config.OPENAI_API_KEY)
         self.model = Config.get_openai_model()
+        self.embedding_model = "text-embedding-3-small"
+
+    def get_embedding(self, text):
+        """Generate embedding for the given text."""
+        if not text:
+            return None
+        
+        # Replace newlines which can negatively affect performance
+        text = text.replace("\n", " ")
+        
+        response = self.client.embeddings.create(
+            input=[text],
+            model=self.embedding_model
+        )
+        return response.data[0].embedding
 
     def analyze_ticket(self, ticket_data, historical_context=None):
         """

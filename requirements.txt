@@ -2,3 +2,4 @@ openai
 streamlit
 requests
 python-dotenv
+numpy
