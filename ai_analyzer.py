@@ -23,7 +23,7 @@ class AIAnalyzer:
         )
         return response.data[0].embedding
 
-    def vision_extract(self, image_base64):
+    def vision_extract(self, image_base64, content_type="image/jpeg"):
         """Extract structured technical details from a screenshot using GPT-4o Vision."""
         if not image_base64:
             return None
@@ -45,7 +45,7 @@ class AIAnalyzer:
                             {"type": "text", "text": prompt},
                             {
                                 "type": "image_url",
-                                "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}
+                                "image_url": {"url": f"data:{content_type};base64,{image_base64}"}
                             },
                         ],
                     }

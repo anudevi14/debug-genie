@@ -40,6 +40,8 @@ with st.sidebar:
         if not sf_client:
             st.error("Salesforce client not initialized.")
         else:
+            # Force reload to handle manual file deletions
+            memory_manager.reload()
             with st.spinner("Fetching non-new tickets from Salesforce..."):
                 historical_cases = sf_client.fetch_historical_cases(limit=100, filter_non_new=True)
                 
@@ -107,8 +109,8 @@ if submit_button:
                     attach = attachments[0]
                     st.info(f"📸 **Screenshot Found**: {attach['Name']} (Analyzing with Vision...)")
                     with st.spinner("Extracting visual evidence using GPT-4o Vision..."):
-                        img_base64 = sf_client.get_attachment_content(attach["Id"])
-                        vision_data = ai_analyzer.vision_extract(img_base64)
+                        img_base64 = sf_client.get_attachment_content(attach["Id"], source=attach.get("Source", "Attachment"))
+                        vision_data = ai_analyzer.vision_extract(img_base64, content_type=attach.get("ContentType", "image/jpeg"))
                     
                     if vision_data:
                         st.success("✅ Vision Analysis Complete!")

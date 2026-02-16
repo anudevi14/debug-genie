@@ -9,6 +9,8 @@ class MemoryManager:
     def _load_memory(self):
         """Load memory from JSON file if it exists."""
         if os.path.exists(self.storage_path):
+            if os.path.getsize(self.storage_path) == 0:
+                return []
             try:
                 with open(self.storage_path, "r") as f:
                     return json.load(f)
@@ -16,6 +18,10 @@ class MemoryManager:
                 print(f"Error loading memory: {e}")
                 return []
         return []
+
+    def reload(self):
+        """Force reload from disk to sync with manual file changes."""
+        self.memory = self._load_memory()
 
     def save_memory(self, entries):
         """Save new entries to memory, avoiding duplicates by case_number."""

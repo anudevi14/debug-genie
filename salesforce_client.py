@@ -143,28 +143,65 @@ class SalesforceClient:
         return combined_text, case # Returning case object as well for ID/Number access
 
     def fetch_case_attachments(self, case_id):
-        """Fetch image attachments (JPG/JPEG) for a given Case Id."""
-        soql = (
+        """Fetch image attachments (JPG/PNG) for a given Case Id from both Attachment and ContentVersion."""
+        # 1. Check legacy Attachment object
+        soql_attach = (
             f"SELECT Id, Name, ContentType FROM Attachment "
             f"WHERE ParentId = '{case_id}' "
-            f"AND (ContentType = 'image/jpeg' OR ContentType = 'image/jpg') "
+            f"AND (ContentType IN ('image/jpeg', 'image/jpg', 'image/png')) "
             f"LIMIT 1"
         )
         url = f"{self.instance_url}/services/data/v59.0/query"
-        params = {"q": soql}
-
-        if Config.MOCK_MODE:
-            return [{"Id": "mock_attach_id", "Name": "error_screenshot.jpg", "ContentType": "image/jpeg"}]
-
-        response = requests.get(url, headers=self._get_headers(), params=params)
-        if response.status_code != 200:
-            return [] # Silent fail for attachments to not break RCA pipeline
         
-        return response.json().get("records", [])
+        if Config.MOCK_MODE:
+            return [{"Id": "mock_attach_id", "Name": "error_screenshot.jpg", "ContentType": "image/jpeg", "Source": "Attachment"}]
 
-    def get_attachment_content(self, attachment_id):
-        """Retrieve base64 content of a specific attachment."""
-        url = f"{self.instance_url}/services/data/v59.0/sobjects/Attachment/{attachment_id}/Body"
+        # Try Attachment first
+        resp = requests.get(url, headers=self._get_headers(), params={"q": soql_attach})
+        if resp.status_code == 200:
+            records = resp.json().get("records", [])
+            if records:
+                records[0]["Source"] = "Attachment"
+                return records
+
+        # 2. Check modern ContentDocumentLink/ContentVersion
+        soql_cdl = (
+            f"SELECT ContentDocumentId FROM ContentDocumentLink "
+            f"WHERE LinkedEntityId = '{case_id}'"
+        )
+        resp = requests.get(url, headers=self._get_headers(), params={"q": soql_cdl})
+        if resp.status_code == 200:
+            cdl_records = resp.json().get("records", [])
+            if cdl_records:
+                doc_ids = [f"'{r['ContentDocumentId']}'" for r in cdl_records]
+                soql_cv = (
+                    f"SELECT Id, Title, FileExtension, FileType FROM ContentVersion "
+                    f"WHERE ContentDocumentId IN ({','.join(doc_ids)}) "
+                    f"AND IsLatest = true "
+                    f"AND FileExtension IN ('jpg', 'jpeg', 'png') "
+                    f"LIMIT 1"
+                )
+                resp_cv = requests.get(url, headers=self._get_headers(), params={"q": soql_cv})
+                if resp_cv.status_code == 200:
+                    cv_records = resp_cv.json().get("records", [])
+                    if cv_records:
+                        # Normalize to match Attachment-like structure for app.py
+                        cv = cv_records[0]
+                        return [{
+                            "Id": cv["Id"],
+                            "Name": f"{cv['Title']}.{cv['FileExtension']}",
+                            "ContentType": f"image/{cv['FileExtension'].lower()}",
+                            "Source": "ContentVersion"
+                        }]
+        
+        return []
+
+    def get_attachment_content(self, attachment_id, source="Attachment"):
+        """Retrieve base64 content of a specific attachment or ContentVersion."""
+        if source == "Attachment":
+            url = f"{self.instance_url}/services/data/v59.0/sobjects/Attachment/{attachment_id}/Body"
+        else:
+            url = f"{self.instance_url}/services/data/v59.0/sobjects/ContentVersion/{attachment_id}/VersionData"
         
         if Config.MOCK_MODE:
             return "mock_base64_content"
