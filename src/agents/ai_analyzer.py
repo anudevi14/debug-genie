@@ -1,13 +1,14 @@
 import json
-from openai import OpenAI
+from openai import OpenAI, AsyncOpenAI
 from src.config import Config
 
 
 class AIAnalyzer:
     def __init__(self):
         self.client = OpenAI(api_key=Config.OPENAI_API_KEY)
-        # Upgrade to GPT-4o for Phase 4 (Multimodal)
-        self.model = "gpt-4o"
+        self.async_client = AsyncOpenAI(api_key=Config.OPENAI_API_KEY)
+        # Switch to gpt-4o-mini for cost efficiency (Cheaper Plan)
+        self.model = "gpt-4o-mini"
         self.embedding_model = "text-embedding-3-small"
 
     def get_embedding(self, text):
@@ -19,6 +20,17 @@ class AIAnalyzer:
         text = text.replace("\n", " ")
 
         response = self.client.embeddings.create(
+            input=[text],
+            model=self.embedding_model
+        )
+        return response.data[0].embedding
+
+    async def get_embedding_async(self, text):
+        """Async version of get_embedding."""
+        if not text:
+            return None
+        text = text.replace("\n", " ")
+        response = await self.async_client.embeddings.create(
             input=[text],
             model=self.embedding_model
         )
@@ -38,6 +50,41 @@ class AIAnalyzer:
 
         try:
             response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": f"data:{content_type};base64,{image_base64}"}
+                            },
+                        ],
+                    }
+                ],
+                max_tokens=500,
+                response_format={"type": "json_object"}
+            )
+            return json.loads(response.choices[0].message.content)
+        except Exception as e:
+            print(f"Vision Extraction Failed: {e}")
+            return None
+
+    async def vision_extract_async(self, image_base64, content_type="image/jpeg"):
+        """Async version of vision_extract."""
+        if not image_base64:
+            return None
+
+        prompt = (
+            "You are a technical support engineer. Extract structured details from this screenshot. "
+            "Return a JSON object with these keys: error_message, error_code, service_name, stack_trace, "
+            "visible_timestamp, environment, additional_observations. "
+            "Only include information that is EXPLICITLY visible. If a field is not found, leave it empty."
+        )
+
+        try:
+            response = await self.async_client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {
@@ -136,8 +183,8 @@ class AIAnalyzer:
                 "Prioritize the 'Analyst Corrected' details over everything else."
             )
 
+        # Sync version
         response = self.client.chat.completions.create(
-            # Force gpt-4o for complex reasoning in Phase 5
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -150,10 +197,90 @@ class AIAnalyzer:
         json_output = response.choices[0].message.content
         return self._validate_and_parse(json_output)
 
-    def reanalyze_with_logs(self, ticket_data, initial_rca, log_summary_text, vision_data=None, historical_context=None):
-        """
-        Phase 7: Performs an enhanced re-analysis using log evidence.
-        """
+    async def analyze_ticket_async(self, ticket_data, historical_context=None, vision_data=None):
+        """Async version of analyze_ticket."""
+        # Calculate Confidence Signals for the AI
+        similarity_score = historical_context['score'] if historical_context else 0.0
+        has_vision = vision_data is not None
+
+        # Phase 5: Reliability & Analyst Correction Signals
+        is_verified = False
+        reliability_score = 0.7
+        historical_is_analyst_corrected = False
+
+        if historical_context:
+            match_entry = historical_context.get("full_entry", {})
+            is_verified = match_entry.get("verified", False)
+            reliability_score = match_entry.get("reliability_score", 0.7)
+            historical_is_analyst_corrected = match_entry.get("analyst_root_cause") is not None
+
+        system_prompt = (
+            "You are a Senior Production Support Engineer with expertise in troubleshooting complex enterprise systems. "
+            "Analyze the provided Salesforce Case description, comments, and screenshot data to determine the root cause. "
+            "Restrict hallucinations and provide analysis based only on the provided facts. "
+            "\n\n"
+            "### INTELLIGENCE SOURCES:\n"
+            "1. **Analyst Corrections**: If the historical context is 'Analyst Corrected', treat that explanation as the Gold Standard truth.\n"
+            "2. **Verified Matches**: If a historical match is 'Verified', it has a higher weight than unverified AI guesses.\n"
+            "3. **Visual Evidence**: Screenshot data helps confirm technical errors (error codes, stack traces).\n"
+            "\n"
+            "You MUST return the output as a STRICT JSON object with the following keys:\n"
+            "- impactedService: The service or component affected.\n"
+            "- probableRootCause: A concise explanation of the root cause.\n"
+            "- splunkQuerySuggestion: A relevant Splunk query to investigate further.\n"
+            "- recommendedSteps: Concrete steps to resolve or mitigate the issue.\n"
+            "- confidence: 'Low' | 'Medium' | 'High' (Categorical level)\n"
+            "- confidence_score: number (0 to 100), quantify your trust in this RCA.\n"
+            "- confidence_reasoning: string, a human-readable explanation referencing similarity matches, reliability of truth sources, and visual evidence.\n"
+            "- isRepeatedIssue: boolean, true if this current ticket matches the patterns of the provided historical ticket.\n"
+            "- similarTicketReference: string, the Ticket Number of the similar historical ticket (if any).\n"
+            "- similarityScore: number, the provided similarity score if applicable.\n"
+            "- visualEvidenceUsed: boolean, set to true if screenshot insights contributed to this RCA.\n"
+            "\n"
+            "Do NOT include any commentary or text before or after the JSON block."
+        )
+
+        user_content = f"CURRENT TICKET FOR ANALYSIS:\n\n{ticket_data}\n\n"
+
+        user_content += "INTELLIGENCE SIGNALS:\n"
+        user_content += f"- Semantic Similarity Match: {similarity_score}\n"
+        user_content += f"- VISUAL EVIDENCE Found: {has_vision}\n"
+        user_content += f"- Historical Match Verified: {is_verified}\n"
+        user_content += f"- Historical Memory Reliability: {reliability_score}\n"
+        user_content += f"- Historical is Analyst Corrected: {historical_is_analyst_corrected}\n"
+
+        if vision_data:
+            user_content += f"- Visual Extraction: {json.dumps(vision_data)}\n"
+        user_content += "\n"
+
+        if historical_context:
+            title = "HISTORICAL CONTEXT (ANALYST CORRECTED)" if historical_is_analyst_corrected else "HISTORICAL CONTEXT (AI GENERATED)"
+            match_entry = historical_context.get("full_entry", {})
+            h_rc = match_entry.get("analyst_root_cause") or match_entry.get("ai_root_cause") or "N/A"
+            h_res = match_entry.get("analyst_resolution") or match_entry.get("ai_resolution") or "N/A"
+            user_content += (
+                f"{title}:\n"
+                f"Previous Ticket Reference: {historical_context['ticket_number']}\n"
+                f"Previous Root Cause: {h_rc}\n"
+                f"Previous Resolution: {h_res}\n"
+                f"Previous Raw Content: {historical_context['content'][:1000]}\n\n"
+            )
+
+        response = await self.async_client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content}
+            ],
+            temperature=0.2,
+            response_format={"type": "json_object"}
+        )
+
+        json_output = response.choices[0].message.content
+        return self._validate_and_parse(json_output)
+
+    async def reanalyze_with_logs_async(self, ticket_data, initial_rca, log_summary_text, vision_data=None, historical_context=None):
+        """Async version of reanalyze_with_logs."""
         system_prompt = (
             "You are a Senior Production Support Engineer performing a Phase 2 Deep Dive. "
             "You already have an Initial RCA, but now you have been provided with real-time Splunk Log Evidence. "
@@ -194,7 +321,7 @@ class AIAnalyzer:
         if historical_context:
             user_content += f"HISTORICAL MATCH: {historical_context['ticket_number']} (Verified: {historical_context.get('full_entry', {}).get('verified')})\n"
 
-        response = self.client.chat.completions.create(
+        response = await self.async_client.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": system_prompt},

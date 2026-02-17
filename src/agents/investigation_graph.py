@@ -1,4 +1,6 @@
 import json
+import asyncio
+import operator
 from typing import TypedDict, List, Optional, Annotated, Union
 from langgraph.graph import StateGraph, END
 from src.agents.ai_analyzer import AIAnalyzer
@@ -21,7 +23,8 @@ class InvestigationState(TypedDict):
     log_summary: Optional[dict]
     enhanced_rca: Optional[dict]
     confidence_score: float
-    status_updates: List[str]
+    status_updates: Annotated[List[str], operator.add]
+    loop_count: int
 
 class InvestigationGraph:
     def __init__(self, sf_client, ai_analyzer, similarity_engine, memory_manager, log_parser):
@@ -43,16 +46,12 @@ class InvestigationGraph:
         graph.add_node("analyze_logs", self.node_analyze_logs)
         graph.add_node("synthesize_findings", self.node_synthesize_findings)
 
-        # Define Edges
+        # Define Edges (Sequential Performance)
         graph.set_entry_point("ingest_ticket")
         
         graph.add_edge("ingest_ticket", "extract_visuals")
         graph.add_edge("extract_visuals", "query_memory")
         graph.add_edge("query_memory", "generate_rca")
-        
-        # Intermediate routing: Should we do a log deep dive immediately if logs provided 
-        # or if confidence is low? For now, let's make it a sequence that can be triggered.
-        # In a real agentic flow, we might loop.
         
         graph.add_conditional_edges(
             "generate_rca",
@@ -68,48 +67,53 @@ class InvestigationGraph:
 
         return graph.compile()
 
-    # --- Nodes ---
+    # --- Nodes (Changed to Async for Parallel Support) ---
 
-    def node_ingest_ticket(self, state: InvestigationState):
+    async def node_ingest_ticket(self, state: InvestigationState):
         ticket_id = state["ticket_id"]
         updates = state.get("status_updates", [])
         updates.append("🔍 Fetching Ticket Data...")
         
-        ticket_data, case_obj = self.sf_client.get_full_ticket_data(ticket_id)
+        # Run sync SF call in thread
+        ticket_data, case_obj = await asyncio.to_thread(self.sf_client.get_full_ticket_data, ticket_id)
         if not ticket_data:
             raise ValueError(f"Ticket #{ticket_id} not found.")
             
         return {
             "ticket_data": ticket_data, 
             "case_obj": case_obj,
-            "status_updates": updates
+            "status_updates": updates,
+            "loop_count": 0
         }
 
-    def node_extract_visuals(self, state: InvestigationState):
+    async def node_extract_visuals(self, state: InvestigationState):
         case_obj = state["case_obj"]
         updates = state["status_updates"]
         updates.append("📸 Inspecting Attachments & Screenshots...")
         
         vision_data = None
-        attachments = self.sf_client.fetch_case_attachments(case_obj["Id"])
+        attachments = await asyncio.to_thread(self.sf_client.fetch_case_attachments, case_obj["Id"])
         if attachments:
             attach = attachments[0]
-            img_base64 = self.sf_client.get_attachment_content(attach["Id"], source=attach.get("Source", "Attachment"))
-            vision_data = self.ai_analyzer.vision_extract(img_base64, content_type=attach.get("ContentType", "image/jpeg"))
+            img_base64 = await asyncio.to_thread(self.sf_client.get_attachment_content, attach["Id"], source=attach.get("Source", "Attachment"))
+            # Use async version of vision extract
+            vision_data = await self.ai_analyzer.vision_extract_async(img_base64, content_type=attach.get("ContentType", "image/jpeg"))
             
         return {"vision_data": vision_data, "status_updates": updates}
 
-    def node_query_memory(self, state: InvestigationState):
+    async def node_query_memory(self, state: InvestigationState):
         case_obj = state["case_obj"]
-        vision_data = state["vision_data"]
+        vision_data = state.get("vision_data")
         updates = state["status_updates"]
         updates.append("🧠 Querying Semantic Memory...")
         
-        text_for_embedding = self.sf_client.get_ticket_text_for_comparison(case_obj)
-        if vision_data:
-            text_for_embedding += f"\nVisual Markers: {json.dumps(vision_data)}"
+        text_for_embedding = await asyncio.to_thread(self.sf_client.get_ticket_text_for_comparison, case_obj)
         
-        current_embedding = self.ai_analyzer.get_embedding(text_for_embedding)
+        # Linear flow allows us to ALWAYS use vision data in the search query if it exists
+        if vision_data:
+            text_for_embedding += f"\nVisual Context: {json.dumps(vision_data)}"
+        
+        current_embedding = await self.ai_analyzer.get_embedding_async(text_for_embedding)
         similar_match, score = self.similarity_engine.find_most_similar_semantic(
             current_embedding, self.memory_manager.get_all_entries()
         )
@@ -130,18 +134,18 @@ class InvestigationGraph:
             "status_updates": updates
         }
 
-    def node_generate_rca(self, state: InvestigationState):
+    async def node_generate_rca(self, state: InvestigationState):
         updates = state["status_updates"]
         updates.append("🤖 Generating Autonomous RCA...")
         
-        initial_rca = self.ai_analyzer.analyze_ticket(
+        initial_rca = await self.ai_analyzer.analyze_ticket_async(
             state["ticket_data"], 
             historical_context=state["similarity_context"], 
             vision_data=state["vision_data"]
         )
         
         # Auto-save to memory
-        self.memory_manager.save_memory([{
+        await asyncio.to_thread(self.memory_manager.save_memory, [{
             "case_number": state["ticket_id"],
             "text": state["text_for_embedding"],
             "embedding": state["current_embedding"],
@@ -155,13 +159,15 @@ class InvestigationGraph:
             "status_updates": updates
         }
 
-    def node_analyze_logs(self, state: InvestigationState):
+    async def node_analyze_logs(self, state: InvestigationState):
         updates = state["status_updates"]
         updates.append("🔍 Correlating Log Evidence...")
         
         log_txt = state["log_data"]
         summary = self.log_parser.parse(log_txt)
-        enhanced_rca = self.ai_analyzer.reanalyze_with_logs(
+        
+        # Recalculate using enhanced logic
+        enhanced_rca = await self.ai_analyzer.reanalyze_with_logs_async(
             state["ticket_data"], 
             state["initial_rca"],
             self.log_parser.format_for_ai(summary), 
@@ -176,7 +182,7 @@ class InvestigationGraph:
             "status_updates": updates
         }
 
-    def node_synthesize_findings(self, state: InvestigationState):
+    async def node_synthesize_findings(self, state: InvestigationState):
         updates = state["status_updates"]
         updates.append("💾 Finalizing Deep Investigation...")
         return {"status_updates": updates}
@@ -184,22 +190,17 @@ class InvestigationGraph:
     # --- Routing ---
 
     def route_after_rca(self, state: InvestigationState):
-        # If logs are already provided in the state (e.g. from user input during multi-step), go to log analysis
-        # Or if confidence is critically low (< 40) we might want to flag for log deep dive
+        # Log analysis always takes priority if logs were uploaded
         if state.get("log_data"):
             return "log_deep_dive"
         
-        # Example of agentic decision making: 
-        # if state["confidence_score"] < 50:
-        #    return "log_deep_dive" # in a real world, this would trigger an automated splunk fetch
-        
         return "finalize"
 
-    def run(self, ticket_id: str, log_data: Optional[str] = None):
+    async def run_async(self, ticket_id: str, log_data: Optional[str] = None):
         initial_state = {
             "ticket_id": ticket_id,
             "log_data": log_data,
             "status_updates": [],
             "confidence_score": 0.0
         }
-        return self.workflow.invoke(initial_state)
+        return await self.workflow.ainvoke(initial_state)

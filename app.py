@@ -119,6 +119,8 @@ if submit_button:
             with st.status("Performing Deep Investigation...", expanded=True) as status:
                 graph = InvestigationGraph(sf_client, ai_analyzer, similarity_engine, memory_manager, log_parser)
                 
+                import asyncio
+                
                 initial_state = {
                     "ticket_id": ticket_input,
                     "log_data": None,
@@ -127,15 +129,15 @@ if submit_button:
                 }
                 
                 final_state = {}
-                # Stream the events from the graph
-                for event in graph.workflow.stream(initial_state):
-                    for node_name, output in event.items():
-                        # Update our local state tracker
-                        final_state.update(output)
-                        
-                        # Show the latest status update from the node
-                        if "status_updates" in output and output["status_updates"]:
-                            st.write(output["status_updates"][-1])
+                
+                async def run_analysis():
+                    async for event in graph.workflow.astream(initial_state):
+                        for node_name, output in event.items():
+                            final_state.update(output)
+                            if "status_updates" in output and output["status_updates"]:
+                                st.write(output["status_updates"][-1])
+                
+                asyncio.run(run_analysis())
                 
                 # Update Session State from the accumulated final_state
                 st.session_state.update({
@@ -306,6 +308,8 @@ if st.session_state.analysis_result:
                 with st.status("Correlating log signals with ticket context...", expanded=True) as status:
                     graph = InvestigationGraph(sf_client, ai_analyzer, similarity_engine, memory_manager, log_parser)
                     
+                    import asyncio
+                    
                     initial_state = {
                         "ticket_id": st.session_state.case_num,
                         "log_data": log_txt,
@@ -314,11 +318,15 @@ if st.session_state.analysis_result:
                     }
                     
                     final_state = {}
-                    for event in graph.workflow.stream(initial_state):
-                        for node_name, output in event.items():
-                            final_state.update(output)
-                            if "status_updates" in output and output["status_updates"]:
-                                st.write(output["status_updates"][-1])
+                    
+                    async def run_log_analysis():
+                        async for event in graph.workflow.astream(initial_state):
+                            for node_name, output in event.items():
+                                final_state.update(output)
+                                if "status_updates" in output and output["status_updates"]:
+                                    st.write(output["status_updates"][-1])
+                    
+                    asyncio.run(run_log_analysis())
                     
                     st.session_state.log_summary = final_state.get("log_summary")
                     st.session_state.enhanced_result = final_state.get("enhanced_rca")
