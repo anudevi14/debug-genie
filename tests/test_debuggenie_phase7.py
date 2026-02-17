@@ -1,6 +1,6 @@
 import unittest
 import json
-from ai_analyzer import AIAnalyzer
+from src.agents.ai_analyzer import AIAnalyzer
 
 class TestDebugGeniePhase7(unittest.TestCase):
     def setUp(self):

@@ -1,12 +1,13 @@
 import streamlit as st
 import json
 import numpy as np
-from config import Config
-from salesforce_client import SalesforceClient
-from ai_analyzer import AIAnalyzer
-from similarity_engine import SimilarityEngine
-from memory_manager import MemoryManager
-from log_parser import LogParser
+from src.config import Config
+from src.clients.salesforce_client import SalesforceClient
+from src.agents.ai_analyzer import AIAnalyzer
+from src.engine.similarity_engine import SimilarityEngine
+from src.engine.memory_manager import MemoryManager
+from src.utils.log_parser import LogParser
+from src.agents.investigation_graph import InvestigationGraph
 
 # Page Configuration
 st.set_page_config(
@@ -20,7 +21,7 @@ def local_css(file_name):
     with open(file_name) as f:
         st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
 
-local_css("style.css")
+local_css("assets/style.css")
 
 # Initialize Clients
 @st.cache_resource
@@ -116,49 +117,38 @@ if submit_button:
             })
 
             with st.status("Performing Deep Investigation...", expanded=True) as status:
-                st.write("🔍 Fetching Ticket Data...")
-                ticket_data, case_obj = sf_client.get_full_ticket_data(ticket_input)
-                if not ticket_data:
-                    st.error(f"Ticket #{ticket_input} not found.")
-                    st.stop()
-                st.session_state.ticket_data = ticket_data
-
-                st.write("📸 Inspecting Attachments & Screenshots...")
-                attachments = sf_client.fetch_case_attachments(case_obj["Id"])
-                if attachments:
-                    attach = attachments[0]
-                    img_base64 = sf_client.get_attachment_content(attach["Id"], source=attach.get("Source", "Attachment"))
-                    st.session_state.vision_data = ai_analyzer.vision_extract(img_base64, content_type=attach.get("ContentType", "image/jpeg"))
-
-                st.write("🧠 Querying Semantic Memory...")
-                text_for_embedding = sf_client.get_ticket_text_for_comparison(case_obj)
-                if st.session_state.vision_data:
-                    text_for_embedding += f"\nVisual Markers: {json.dumps(st.session_state.vision_data)}"
-                st.session_state.text_for_embedding = text_for_embedding
+                graph = InvestigationGraph(sf_client, ai_analyzer, similarity_engine, memory_manager, log_parser)
                 
-                current_embedding = ai_analyzer.get_embedding(text_for_embedding)
-                st.session_state.current_embedding = current_embedding
-                similar_match, score = similarity_engine.find_most_similar_semantic(current_embedding, memory_manager.get_all_entries())
+                initial_state = {
+                    "ticket_id": ticket_input,
+                    "log_data": None,
+                    "status_updates": [],
+                    "confidence_score": 0.0
+                }
                 
-                if similar_match:
-                    st.session_state.similar_match = (similar_match, score)
-                    st.session_state.hist_context = {
-                        "ticket_number": similar_match['case_number'], "score": round(float(score), 2),
-                        "content": similar_match['text'], "full_entry": similar_match
-                    }
-
-                st.write("🤖 Generating Autonomous RCA...")
-                st.session_state.analysis_result = ai_analyzer.analyze_ticket(
-                    ticket_data, historical_context=st.session_state.hist_context, vision_data=st.session_state.vision_data
-                )
+                final_state = {}
+                # Stream the events from the graph
+                for event in graph.workflow.stream(initial_state):
+                    for node_name, output in event.items():
+                        # Update our local state tracker
+                        final_state.update(output)
+                        
+                        # Show the latest status update from the node
+                        if "status_updates" in output and output["status_updates"]:
+                            st.write(output["status_updates"][-1])
                 
-                st.write("💾 Registering Evidence in knowledge base...")
-                memory_manager.save_memory([{
-                    "case_number": ticket_input, "text": st.session_state.text_for_embedding,
-                    "embedding": st.session_state.current_embedding,
-                    "root_cause": st.session_state.analysis_result.get("probableRootCause"),
-                    "resolution": st.session_state.analysis_result.get("recommendedSteps")
-                }])
+                # Update Session State from the accumulated final_state
+                st.session_state.update({
+                    "ticket_data": final_state.get("ticket_data"),
+                    "vision_data": final_state.get("vision_data"),
+                    "text_for_embedding": final_state.get("text_for_embedding"),
+                    "current_embedding": final_state.get("current_embedding"),
+                    "hist_context": final_state.get("similarity_context"),
+                    "analysis_result": final_state.get("initial_rca"),
+                    "similar_match": (final_state.get("similarity_context")["full_entry"], final_state.get("similarity_context")["score"]) 
+                                     if final_state.get("similarity_context") else None
+                })
+                
                 status.update(label="Investigation Complete!", state="complete", expanded=False)
 
             st.rerun()
@@ -313,15 +303,26 @@ if st.session_state.analysis_result:
             if not log_txt:
                 st.warning("Please provide logs for re-analysis.")
             else:
-                with st.spinner("Correlating log signals with ticket context..."):
-                    summary = log_parser.parse(log_txt)
-                    st.session_state.log_summary = summary
-                    enhanced = ai_analyzer.reanalyze_with_logs(
-                        st.session_state.ticket_data, st.session_state.analysis_result,
-                        log_parser.format_for_ai(summary), vision_data=st.session_state.vision_data,
-                        historical_context=st.session_state.hist_context
-                    )
-                    st.session_state.enhanced_result = enhanced
+                with st.status("Correlating log signals with ticket context...", expanded=True) as status:
+                    graph = InvestigationGraph(sf_client, ai_analyzer, similarity_engine, memory_manager, log_parser)
+                    
+                    initial_state = {
+                        "ticket_id": st.session_state.case_num,
+                        "log_data": log_txt,
+                        "status_updates": [],
+                        "confidence_score": st.session_state.analysis_result.get("confidence_score", 0.0)
+                    }
+                    
+                    final_state = {}
+                    for event in graph.workflow.stream(initial_state):
+                        for node_name, output in event.items():
+                            final_state.update(output)
+                            if "status_updates" in output and output["status_updates"]:
+                                st.write(output["status_updates"][-1])
+                    
+                    st.session_state.log_summary = final_state.get("log_summary")
+                    st.session_state.enhanced_result = final_state.get("enhanced_rca")
+                    status.update(label="Log Correlation Complete!", state="complete", expanded=False)
                 st.rerun()
         
         if st.session_state.enhanced_result:

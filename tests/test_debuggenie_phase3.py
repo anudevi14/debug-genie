@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch, MagicMock
-from similarity_engine import SimilarityEngine
-from memory_manager import MemoryManager
+from src.engine.similarity_engine import SimilarityEngine
+from src.engine.memory_manager import MemoryManager
 import numpy as np
 import os
 import json
@@ -43,10 +43,10 @@ class TestDebugGeniePhase3(unittest.TestCase):
         if os.path.exists(test_file):
             os.remove(test_file)
 
-    @patch('ai_analyzer.OpenAI')
+    @patch('src.agents.ai_analyzer.OpenAI')
     @patch('config.Config.OPENAI_API_KEY', 'fake_key')
     def test_ai_analyzer_get_embedding(self, mock_openai_class):
-        from ai_analyzer import AIAnalyzer
+        from src.agents.ai_analyzer import AIAnalyzer
         mock_client = mock_openai_class.return_value
         mock_client.embeddings.create.return_value = MagicMock(
             data=[MagicMock(embedding=[0.1, 0.2, 0.3])]

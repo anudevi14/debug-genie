@@ -1,7 +1,7 @@
 import unittest
 import os
 import json
-from memory_manager import MemoryManager
+from src.engine.memory_manager import MemoryManager
 
 class TestDebugGeniePhase5(unittest.TestCase):
     def setUp(self):

@@ -1,11 +1,11 @@
 import unittest
 from unittest.mock import patch, MagicMock
-from ai_analyzer import AIAnalyzer
+from src.agents.ai_analyzer import AIAnalyzer
 import json
 
 class TestDebugGeniePhase45(unittest.TestCase):
 
-    @patch('ai_analyzer.OpenAI')
+    @patch('src.agents.ai_analyzer.OpenAI')
     @patch('config.Config.OPENAI_API_KEY', 'fake_key')
     def test_confidence_output_schema(self, mock_openai_class):
         mock_client = mock_openai_class.return_value

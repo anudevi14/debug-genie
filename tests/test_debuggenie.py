@@ -1,12 +1,12 @@
 import unittest
 from unittest.mock import patch, MagicMock
-from salesforce_client import SalesforceClient
-from ai_analyzer import AIAnalyzer
-from config import Config
+from src.clients.salesforce_client import SalesforceClient
+from src.agents.ai_analyzer import AIAnalyzer
+from src.config import Config
 
 class TestDebugGenie(unittest.TestCase):
 
-    @patch('salesforce_client.requests.post')
+    @patch('src.clients.salesforce_client.requests.post')
     def test_sf_authentication(self, mock_post):
         # Mock successful authentication
         mock_response = MagicMock()
@@ -20,7 +20,7 @@ class TestDebugGenie(unittest.TestCase):
         self.assertEqual(token, "mock_access_token")
         self.assertEqual(client.access_token, "mock_access_token")
 
-    @patch('salesforce_client.requests.get')
+    @patch('src.clients.salesforce_client.requests.get')
     def test_sf_fetch_case(self, mock_get):
         # Mock successful case retrieval
         mock_response = MagicMock()
@@ -37,7 +37,7 @@ class TestDebugGenie(unittest.TestCase):
         self.assertIsNotNone(case)
         self.assertEqual(case["CaseNumber"], "12345")
 
-    @patch('ai_analyzer.OpenAI')
+    @patch('src.agents.ai_analyzer.OpenAI')
     def test_ai_analysis(self, mock_openai_class):
         # Mock OpenAI response
         mock_client = mock_openai_class.return_value

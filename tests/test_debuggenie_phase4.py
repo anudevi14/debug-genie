@@ -1,12 +1,12 @@
 import unittest
 from unittest.mock import patch, MagicMock
-from ai_analyzer import AIAnalyzer
-from salesforce_client import SalesforceClient
+from src.agents.ai_analyzer import AIAnalyzer
+from src.clients.salesforce_client import SalesforceClient
 import json
 
 class TestDebugGeniePhase4(unittest.TestCase):
 
-    @patch('ai_analyzer.OpenAI')
+    @patch('src.agents.ai_analyzer.OpenAI')
     @patch('config.Config.OPENAI_API_KEY', 'fake_key')
     def test_vision_extract(self, mock_openai_class):
         mock_client = mock_openai_class.return_value
@@ -21,7 +21,7 @@ class TestDebugGeniePhase4(unittest.TestCase):
         self.assertEqual(result["error_message"], "500 Internal Server Error")
         mock_client.chat.completions.create.assert_called_once()
 
-    @patch('ai_analyzer.OpenAI')
+    @patch('src.agents.ai_analyzer.OpenAI')
     @patch('config.Config.OPENAI_API_KEY', 'fake_key')
     def test_multimodal_analysis_prompt(self, mock_openai_class):
         mock_client = mock_openai_class.return_value
@@ -39,7 +39,7 @@ class TestDebugGeniePhase4(unittest.TestCase):
         self.assertIn("VISUAL EVIDENCE", user_msg)
         self.assertIn("Timeout", user_msg)
 
-    @patch('salesforce_client.requests.get')
+    @patch('src.clients.salesforce_client.requests.get')
     def test_fetch_case_attachments_mock(self, mock_get):
         # Setting up the mock response for Salesforce query
         mock_response = MagicMock()

@@ -1,9 +1,9 @@
 import unittest
 from unittest.mock import patch, MagicMock
-from salesforce_client import SalesforceClient
-from ai_analyzer import AIAnalyzer
-from similarity_engine import SimilarityEngine
-from config import Config
+from src.clients.salesforce_client import SalesforceClient
+from src.agents.ai_analyzer import AIAnalyzer
+from src.engine.similarity_engine import SimilarityEngine
+from src.config import Config
 
 class TestDebugGeniePhase2(unittest.TestCase):
 
@@ -19,7 +19,7 @@ class TestDebugGeniePhase2(unittest.TestCase):
         self.assertGreater(score12, 0.7)
         self.assertLess(score13, 0.4)
 
-    @patch('salesforce_client.SalesforceClient')
+    @patch('src.clients.salesforce_client.SalesforceClient')
     def test_find_most_similar(self, mock_sf_client):
         engine = SimilarityEngine(threshold=0.6)
         current_text = "Database connection pool exhaustion and 504 gateway timeout"
@@ -39,7 +39,7 @@ class TestDebugGeniePhase2(unittest.TestCase):
         self.assertEqual(match["CaseNumber"], "001")
         self.assertGreater(score, 0.6)
 
-    @patch('ai_analyzer.OpenAI')
+    @patch('src.agents.ai_analyzer.OpenAI')
     def test_ai_analysis_with_context(self, mock_openai_class):
         mock_client = mock_openai_class.return_value
         mock_response = MagicMock()

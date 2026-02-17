@@ -1,7 +1,7 @@
 import requests
 import json
 import base64
-from config import Config
+from src.config import Config
 
 
 class SalesforceClient:
@@ -31,6 +31,10 @@ class SalesforceClient:
         except Exception as e:
             print(f"Salesforce Auth Failed: {e}")
             return None
+
+    def authenticate(self):
+        """Backward compatibility alias for _get_access_token."""
+        return self._get_access_token()
 
     def get_full_ticket_data(self, ticket_number):
         """Fetch Case details and related CaseComments."""

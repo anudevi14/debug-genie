@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 
 class MemoryManager:
-    def __init__(self, storage_path="ticket_memory.json", feedback_path="feedback_memory.json"):
+    def __init__(self, storage_path="data/ticket_memory.json", feedback_path="data/feedback_memory.json"):
         self.storage_path = storage_path
         self.feedback_path = feedback_path
         self.memory = self._load_memory()
