@@ -24,7 +24,6 @@ class InvestigationState(TypedDict):
     enhanced_rca: Optional[dict]
     confidence_score: float
     status_updates: Annotated[List[str], operator.add]
-    loop_count: int
 
 class InvestigationGraph:
     def __init__(self, sf_client, ai_analyzer, similarity_engine, memory_manager, log_parser):
@@ -82,8 +81,7 @@ class InvestigationGraph:
         return {
             "ticket_data": ticket_data, 
             "case_obj": case_obj,
-            "status_updates": updates,
-            "loop_count": 0
+            "status_updates": updates
         }
 
     async def node_extract_visuals(self, state: InvestigationState):
