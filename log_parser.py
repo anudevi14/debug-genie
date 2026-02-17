@@ -1,12 +1,14 @@
 import re
 from collections import Counter
-from datetime import datetime
+
 
 class LogParser:
     def __init__(self):
         # Common log patterns
         self.exception_pattern = re.compile(r'([a-zA-Z0-9.]+Exception|Error): (.*)')
-        self.timestamp_pattern = re.compile(r'(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)')
+        self.timestamp_pattern = re.compile(
+            r'(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)'
+        )
         self.service_pattern = re.compile(r'service=["\']?([a-zA-Z0-9_-]+)["\']?')
         self.env_pattern = re.compile(r'env=["\']?([a-zA-Z0-9_-]+)["\']?')
 
@@ -41,7 +43,7 @@ class LogParser:
             svc_match = self.service_pattern.search(line)
             if svc_match:
                 services.add(svc_match.group(1))
-            
+
             env_match = self.env_pattern.search(line)
             if env_match:
                 envs.add(env_match.group(1))
@@ -55,7 +57,7 @@ class LogParser:
         # clustering & summarization
         exc_counts = Counter(exceptions)
         top_exception = exc_counts.most_common(1)[0] if exceptions else ("Unknown Pattern", 0)
-        
+
         # Time Window
         time_window = "Unknown"
         if timestamps:
@@ -63,12 +65,12 @@ class LogParser:
                 # Basic string sort works for ISO formats
                 timestamps.sort()
                 time_window = f"{timestamps[0]} to {timestamps[-1]}"
-            except:
+            except Exception:
                 pass
 
         # Identify Dominant Error Pattern
         # Group lines that are similar (very basic clustering for MVP)
-        unique_error_patterns = Counter([l[:100] for l in error_lines]).most_common(3)
+        unique_error_patterns = Counter([line_snippet[:100] for line_snippet in error_lines]).most_common(3)
 
         return {
             "top_exception": top_exception[0],

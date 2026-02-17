@@ -212,9 +212,21 @@ if st.session_state.analysis_result:
             st.markdown("#### recommended Mitigation")
             raw_steps = res.get("recommendedSteps") or ""
             steps = raw_steps if isinstance(raw_steps, list) else raw_steps.split(". ")
-            for step in steps:
-                if step:
-                    st.markdown(f'<div class="action-card">🛠️ {step.strip().strip(".")}</div>', unsafe_allow_html=True)
+            
+            # Group numbered markers with their steps
+            processed_steps = []
+            temp_step = ""
+            for s in steps:
+                s = s.strip()
+                if not s: continue
+                if s.isdigit() and len(s) <= 2:
+                    temp_step = s + ". "
+                else:
+                    processed_steps.append(temp_step + s)
+                    temp_step = ""
+            
+            for step in processed_steps:
+                st.markdown(f'<div class="action-card">🛠️ {step.strip().strip(".")}</div>', unsafe_allow_html=True)
 
             # Restored Missing Details
             if res.get("splunkQuerySuggestion") and res.get("splunkQuerySuggestion") != "N/A":
@@ -325,8 +337,21 @@ if st.session_state.analysis_result:
                 st.markdown("#### Actionable steps")
                 e_steps = e_res.get("enhanced_resolution") or ""
                 e_steps_list = e_steps if isinstance(e_steps, list) else e_steps.split(". ")
+                
+                # Group numbered markers with their steps
+                processed_e_steps = []
+                temp_e_step = ""
                 for s in e_steps_list:
-                    if s: st.markdown(f'<div class="action-card">🔥 {s.strip().strip(".")}</div>', unsafe_allow_html=True)
+                    s = s.strip()
+                    if not s: continue
+                    if s.isdigit() and len(s) <= 2:
+                        temp_e_step = s + ". "
+                    else:
+                        processed_e_steps.append(temp_e_step + s)
+                        temp_e_step = ""
+                
+                for s in processed_e_steps:
+                    st.markdown(f'<div class="action-card">🔥 {s.strip().strip(".")}</div>', unsafe_allow_html=True)
             
             with col_e2:
                 st.markdown('<div style="text-align: center;">', unsafe_allow_html=True)

@@ -56,7 +56,16 @@ class SimilarityEngine:
                 best_score = score
                 best_match = ticket
 
-        if best_score >= 0.65: # Original threshold
+        if best_score >= 0.65:  # Original threshold
             return best_match, best_score
-        
+
         return None, 0.0
+
+    def find_most_similar(self, current_text, historical_tickets, sf_client):
+        """Deprecated alias for find_most_similar_text used by older tests."""
+        return self.find_most_similar_text(current_text, historical_tickets, sf_client)
+
+    def _calculate_score(self, text1, text2):
+        """Internal helper for text similarity used by older tests."""
+        from difflib import SequenceMatcher
+        return SequenceMatcher(None, text1.lower(), text2.lower()).ratio()

@@ -2,6 +2,7 @@ import json
 from openai import OpenAI
 from config import Config
 
+
 class AIAnalyzer:
     def __init__(self):
         self.client = OpenAI(api_key=Config.OPENAI_API_KEY)
@@ -13,10 +14,10 @@ class AIAnalyzer:
         """Generate embedding for the given text."""
         if not text:
             return None
-        
+
         # Replace newlines which can negatively affect performance
         text = text.replace("\n", " ")
-        
+
         response = self.client.embeddings.create(
             input=[text],
             model=self.embedding_model
@@ -67,12 +68,12 @@ class AIAnalyzer:
         # Calculate Confidence Signals for the AI
         similarity_score = historical_context['score'] if historical_context else 0.0
         has_vision = vision_data is not None
-        
+
         # Phase 5: Reliability & Analyst Correction Signals
         is_verified = False
         reliability_score = 0.7
         historical_is_analyst_corrected = False
-        
+
         if historical_context:
             match_entry = historical_context.get("full_entry", {})
             is_verified = match_entry.get("verified", False)
@@ -106,25 +107,25 @@ class AIAnalyzer:
         )
 
         user_content = f"CURRENT TICKET FOR ANALYSIS:\n\n{ticket_data}\n\n"
-        
+
         user_content += "INTELLIGENCE SIGNALS:\n"
         user_content += f"- Semantic Similarity Match: {similarity_score}\n"
-        user_content += f"- Visual Evidence Found: {has_vision}\n"
+        user_content += f"- VISUAL EVIDENCE Found: {has_vision}\n"
         user_content += f"- Historical Match Verified: {is_verified}\n"
         user_content += f"- Historical Memory Reliability: {reliability_score}\n"
         user_content += f"- Historical is Analyst Corrected: {historical_is_analyst_corrected}\n"
-        
+
         if vision_data:
             user_content += f"- Visual Extraction: {json.dumps(vision_data)}\n"
         user_content += "\n"
 
         if historical_context:
             title = "HISTORICAL CONTEXT (ANALYST CORRECTED)" if historical_is_analyst_corrected else "HISTORICAL CONTEXT (AI GENERATED)"
-            
+
             # Prioritize Analyst Content
             h_rc = match_entry.get("analyst_root_cause") or match_entry.get("ai_root_cause") or "N/A"
             h_res = match_entry.get("analyst_resolution") or match_entry.get("ai_resolution") or "N/A"
-            
+
             user_content += (
                 f"{title}:\n"
                 f"Previous Ticket Reference: {historical_context['ticket_number']}\n"
@@ -186,10 +187,10 @@ class AIAnalyzer:
             f"INITIAL RCA: {json.dumps(initial_rca)}\n"
             f"LOG EVIDENCE SUMMARY: {log_summary_text}\n"
         )
-        
+
         if vision_data:
             user_content += f"VISION FINDINGS: {json.dumps(vision_data)}\n"
-        
+
         if historical_context:
             user_content += f"HISTORICAL MATCH: {historical_context['ticket_number']} (Verified: {historical_context.get('full_entry', {}).get('verified')})\n"
 
@@ -212,7 +213,7 @@ class AIAnalyzer:
             data = json.loads(json_str)
             if mode == "initial":
                 required_keys = [
-                    "impactedService", "probableRootCause", "splunkQuerySuggestion", 
+                    "impactedService", "probableRootCause", "splunkQuerySuggestion",
                     "recommendedSteps", "confidence", "confidence_score", "confidence_reasoning",
                     "isRepeatedIssue", "similarTicketReference", "similarityScore", "visualEvidenceUsed"
                 ]
@@ -222,7 +223,7 @@ class AIAnalyzer:
                     "enhanced_confidence_score", "confidence_change_reason", "dominant_exception",
                     "impactedService"
                 ]
-                
+
             for key in required_keys:
                 if key not in data or data[key] is None:
                     if key == "isRepeatedIssue":
